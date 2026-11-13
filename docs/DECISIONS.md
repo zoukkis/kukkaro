@@ -1,0 +1,14 @@
+# Decisions and process log
+
+This is our process log. Verda's minimum requirement is documenting the process, and the
+summary we post to their Discord is built from this file. Append, never rewrite. Format: `YYYY-MM-DD HH:MM · who · decision · why`.
+
+## Decisions
+- 2026-11-14 00:30 · team · Architecture per AGENTS.md §4: FastAPI + DuckDB backend, React/Vite web, Gemini default, Gemma on Verda as EU privacy mode · fits S-Bank, Gemini, Gemma and Verda judging at once
+- 2026-11-14 00:30 · team · LLM never computes numbers; deterministic tools only · trust and correctness in a finance app
+- 2026-11-14 00:30 · team · Synthetic receipt layer behind a `ReceiptProvider` interface · the dataset has no line items; the real S-mobiili archive would plug in later
+
+## Requests between workstreams
+(Format: `from → to · what is needed · status`)
+
+## Lessons / failures

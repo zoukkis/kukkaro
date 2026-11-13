@@ -1,0 +1,1 @@
+This folder is owned by workstream COACH. Read the root `AGENTS.md`, then `backend/kukkaro/coach/AGENTS.md`. Other workstreams only add a router in their own folder and request mounting via `docs/DECISIONS.md`.
