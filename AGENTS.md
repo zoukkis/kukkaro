@@ -61,8 +61,8 @@ says so.
 
 **LLM providers** (switch with `LLM_PROVIDER` in `.env`):
 - `gemini` (default): Gemini API with function calling. Also used for receipt-photo reading (stretch).
-- `gemma` ("EU privacy mode"): Gemma open-weight model self-hosted with vLLM in a **Verda**
-  Serverless Container (OpenAI-compatible). Same tools, same prompts.
+- `gemma` ("EU privacy mode"): Gemma 4. First through the Gemini API (same key), later
+  self-hosted with vLLM in a **Verda** Serverless Container. Same tools, same prompts.
 
 ## 5. Shared contracts (all workstreams depend on these — change only via docs/DECISIONS.md + human OK)
 

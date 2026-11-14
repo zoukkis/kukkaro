@@ -18,14 +18,17 @@ exact numbers from DATA and RECEIPTS, and the LLM explains them kindly and brief
 2. **`llm.py`**: a single interface
    `chat(messages, tools) -> {text, tool_calls}` with two backends chosen by `LLM_PROVIDER`:
    - `gemini`: Google Gen AI SDK, model from `GEMINI_MODEL`, native function calling.
-   - `gemma`: OpenAI-compatible endpoint (`GEMMA_BASE_URL`, `GEMMA_API_KEY`, `GEMMA_MODEL`).
-     Verda's managed inference has **no Gemma** (checked 14 Nov), so we self-host: a **Verda
-     Serverless Container** running **vLLM** (`vllm/vllm-openai` image) serving a Gemma model from
-     Hugging Face. Needs a Hugging Face token with the Gemma licence accepted. Pick the smallest GPU
-     that fits, and enable scale-to-zero so idle time costs nothing. Until that endpoint exists,
-     develop against Gemma through the Gemini API key (Google AI Studio serves Gemma models too).
+   - `gemma` (two stages, same tools and prompts):
+     - **Stage 1 (now):** Gemma 4 through the **Gemini API with the same `GEMINI_API_KEY`**, model
+       from `GEMMA_MODEL` (`gemma-4-26b-a4b-it` or `gemma-4-31b-it`). Same Google Gen AI SDK as
+       `gemini`, just a different model name. Use this for development and the Gemini-vs-Gemma eval.
+     - **Stage 2 (after M2, for the Verda + EU-privacy story):** self-host Gemma 4 from Hugging Face
+       with **vLLM** (`vllm/vllm-openai` image) in a **Verda Serverless Container** in project
+       "Kukkaro" (Verda's managed inference has no Gemma). Needs `HF_TOKEN` with the Gemma licence
+       accepted. Smallest GPU that fits, scale-to-zero on. Set `GEMMA_BASE_URL` / `GEMMA_API_KEY`;
+       when `GEMMA_BASE_URL` is set, call it via the OpenAI-compatible client instead of Stage 1.
      If the model's tool calling is unreliable, use a JSON "tool request" prompt format and parse
-     it. Same tools, same answers.
+     it.
 3. **`tools.py`**: wraps `kukkaro.data.metrics` and the receipts insight helpers as LLM tools, with
    precise JSON schemas and descriptions. Tools return dicts; never format numbers inside tools.
 4. **`prompts.py`**: the system prompt. Must say:
