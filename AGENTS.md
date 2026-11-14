@@ -121,7 +121,7 @@ delivery fee, which counts as `EVERYDAY`.
 | `GET /api/customers/{id}/summary?month=YYYY-MM` | totals per basket, top categories, income, balance |
 | `GET /api/customers/{id}/transactions?limit=&offset=&basket=` | paged `tx_enriched` rows |
 | `GET /api/transactions/{tx_id}/receipt` | Receipt (5.3) or 404 if not a grocery purchase |
-| `GET /api/customers/{id}/safe-to-spend` | `{amount_eur, until_date, explanation_inputs}` |
+| `GET /api/customers/{id}/safe-to-spend` | `{amount_eur, until_date, per_day_eur, this_week_eur, status, explanation_inputs}` (`amount_eur` = until next salary; `this_week_eur` answers "What can I safely spend this week?") |
 | `POST /api/customers/{id}/what-if` | body `{category_or_item, change_pct}` → `{monthly_eur, yearly_eur}` |
 | `POST /api/chat` | body `{customer_id, message, history[]}` → `{answer, tool_calls[], figures[]}` |
 | `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[]}` |
