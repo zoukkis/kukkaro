@@ -31,6 +31,7 @@ def answer(customer_id: str, message: str, history: list[dict], provider: str | 
     metrics.customer_profile(customer_id)  # 404 for an unknown customer before any LLM call
     today = metrics.get_today()
     r = llm.run(system_prompt(today), history, message, SPECS, executor(customer_id), provider)
+    r.text = llm.plain(r.text)
     calls = [{"name": c["name"], "args": c["args"]} for c in r.tool_calls]
     return {
         "answer": r.text,

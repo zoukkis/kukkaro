@@ -262,5 +262,15 @@ def complete_json(system: str, prompt: str, schema: dict, provider: str | None =
     return parsed, result
 
 
+_MD_BOLD = re.compile(r"(\*\*|__)(.+?)\1", re.DOTALL)
+_MD_HEADING = re.compile(r"(?m)^\s{0,3}#{1,6}\s+")
+
+
+def plain(text: str) -> str:
+    """Answers are shown as plain text in S-mobiili-style bubbles: drop Markdown bold and headings
+    (bullets and line breaks stay)."""
+    return _MD_HEADING.sub("", _MD_BOLD.sub(r"\2", text or "")).strip()
+
+
 def dumps(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, default=str)
