@@ -35,9 +35,17 @@ spend split into baskets by item) for the With/Without receipts toggle.
      not). Habits must repeat across weeks so the coach can find real-looking patterns.
    - Items must sum **exactly** to `abs(tx_amount_eur)`. Fill with items, then fix the remainder with
      a final weighted item or a quantity tweak. Never leave a mismatch.
+4b. **Online orders (synthetic).** The real S-mobiili also shows the user's grocery web-shop orders.
+   Mark a persona-consistent share of grocery transactions (e.g. 10–30% for some personas, 0% for
+   others) as `channel: "online_order"`, with a realistic delivery fee and fewer impulse items
+   (online orders are planned; store trips have more leaks). Label the store "Online order
+   (synthetic)". No real S-Group order data, UI or logos.
 5. **Insights helpers** (pure functions, used as COACH tools):
    - `item_spend(customer_id, item_or_category, start, end)`
    - `leak_items(customer_id, start, end)`: top `EVERYDAY` items by euros
+   - `channel_comparison(customer_id, start, end)`: share of EVERYDAY items in online orders vs
+     store trips, delivery fees paid, and the monthly euro difference ("ordering online could save
+     you about €X/month").
    - `store_brand_savings(customer_id, months=3)`: what switching to store-brand twins would save per year
    - `personal_inflation(customer_id)`: price change of the user's repeated items. Only if the
      generator models a price drift over time; otherwise skip and say so in DECISIONS.md.

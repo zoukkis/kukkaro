@@ -12,6 +12,8 @@ summary we post to their Discord is built from this file. Append, never rewrite.
 
 - 2026-11-14 11:50 · Konsta · S-Bank: no good-enough reason found yet to combine S-Group and bank data → our pitch must prove it; added docs/WHY_RECEIPTS.md and the With/Without receipts toggle as the key demo moment · sponsor's open problem = our differentiator
 
+- 2026-11-14 11:55 · Konsta · Receipt contract adds optional `channel` (in_store | online_order) + `delivery_fee_eur`, mirroring S-mobiili's web-shop order history; synthetic, labelled · enables planned-vs-impulse insight
+
 ## Requests between workstreams
 (Format: `from → to · what is needed · status`)
 

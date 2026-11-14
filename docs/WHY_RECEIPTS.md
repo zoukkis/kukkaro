@@ -22,7 +22,11 @@ what you can see.**
    inflation compared with Statistics Finland's index: is life getting pricier, or am I buying more?
 4. **Better "safe to spend".** Warranty receipts (appliances, electronics) let the coach forecast
    unexpected necessities ("your washing machine is 9 years old") instead of treating them as surprises.
-5. **Savings that cost the user nothing.** Store-brand twins and S-Etukortti Bonus show money the
+5. **Planned vs impulse shopping.** S-mobiili also shows grocery web-shop orders. Online orders
+   are planned; store trips include impulse buys. Comparing the two ("your online orders are 92%
+   essentials, your store trips 68%") gives a concrete, measurable saving only a bank + retailer
+   combination can calculate. (Synthetic `channel: online_order` receipts in this demo.)
+6. **Savings that cost the user nothing.** Store-brand twins and S-Etukortti Bonus show money the
    user can keep without changing *what* they eat.
 
 ## Why it's good for S-Bank and S-Group

@@ -101,6 +101,8 @@ for non-spending rows. Mapping lives in `kukkaro/data/baskets.py` only.
   "timestamp": "2026-05-03T17:42:00",
   "total_eur": 47.10,
   "synthetic": true,
+  "channel": "in_store",
+  "delivery_fee_eur": 0.0,
   "items": [
     {"name": "Lactose-free milk 1 l", "category": "dairy", "qty": 2,
      "unit_price_eur": 1.39, "line_total_eur": 2.78, "basket": "MANDATORY_REGULAR",
@@ -108,7 +110,10 @@ for non-spending rows. Mapping lives in `kukkaro/data/baskets.py` only.
   ]
 }
 ```
-Invariant: `sum(line_total_eur) == total_eur` to the cent. `synthetic` is always `true` in this project.
+Invariant: `sum(line_total_eur) + delivery_fee_eur == total_eur` to the cent. `synthetic` is always
+`true` in this project. `channel` is `"in_store"` or `"online_order"` (a synthetic grocery
+web-shop order, like the order history the real S-mobiili shows). Online orders may carry a
+delivery fee, which counts as `EVERYDAY`.
 
 ### 5.4 HTTP API (FastAPI, prefix `/api`, JSON)
 | Method & path | Returns |
