@@ -81,9 +81,42 @@ export interface ButlerSource {
   cited?: boolean;
 }
 
+// A real S-Group product read from an S-kaupat page (public zone): picture and page price, parsed in code.
+export interface Product {
+  id: string;
+  name: string;
+  price_eur: number | null; // null = no price readable on the page; such a product can't be added
+  image: string | null;
+  url: string;
+  store: string;
+  own_brand: boolean;
+  n?: number; // source number in the Butler answer
+  replaces?: string;
+}
+
+// GET /customers/{id}/swaps: "same food, smaller bill". Savings from synthetic receipts; prices from S-kaupat.
+export interface Swap {
+  item: string;
+  store_brand_twin: string;
+  saving_in_period_eur: number;
+  monthly_saving_eur: number;
+  qty_in_period: number;
+  product: Product | null;
+}
+export interface SwapsResponse {
+  start: string;
+  end: string;
+  months: number;
+  monthly_saving_eur: number;
+  yearly_saving_eur: number;
+  swaps: Swap[];
+  note: string;
+}
+
 export interface ButlerResponse {
   answer: string;
   sources: ButlerSource[];
+  products?: Product[];
   next_steps: string[];
   draft?: { kind: string; to: string | null; subject: string; body: string; open_url: string | null; mailto: string | null } | null;
   model?: string;
@@ -117,11 +150,19 @@ export interface OrderLine {
   line_total_eur: number;
   basket: Basket;
   bought_on_trips: number;
+  product_id?: string; // a real S-kaupat product (swap or added from Help)
+  image?: string | null;
+  url?: string;
+  added?: "swap" | "butler";
+  swapped_from?: string;
+  swapped_from_eur?: number;
 }
 export interface GroceryPlan {
   plan_id: string;
   based_on: { start: string; end: string; receipts: number; min_trips: number };
   items: OrderLine[];
+  swaps?: string[];
+  extras?: string[];
   left_out: OrderLine[];
   include_treats: boolean;
   items_total_eur: number;
@@ -255,15 +296,18 @@ const real = {
     http<SafeToSpend>(`/customers/${encodeURIComponent(id)}/safe-to-spend`),
   suggestions: (id: string) =>
     http<{ suggestions: BillSuggestion[] }>(`/customers/${encodeURIComponent(id)}/butler/suggestions`),
-  groceryPlan: (id: string, includeTreats: boolean, delivery: DeliveryOption) =>
-    http<GroceryPlan>(
-      `/customers/${encodeURIComponent(id)}/grocery-order?include_treats=${includeTreats}&delivery=${delivery}`,
-    ),
-  approveOrder: (id: string, plan_id: string, include_treats: boolean, delivery: DeliveryOption) =>
+  groceryPlan: (id: string, includeTreats: boolean, delivery: DeliveryOption, extras: string[] = [], swaps: string[] = []) => {
+    const q = new URLSearchParams({ include_treats: String(includeTreats), delivery });
+    extras.forEach((x) => q.append("extra", x));
+    swaps.forEach((x) => q.append("swap", x));
+    return http<GroceryPlan>(`/customers/${encodeURIComponent(id)}/grocery-order?${q}`);
+  },
+  approveOrder: (id: string, plan_id: string, include_treats: boolean, delivery: DeliveryOption, extras: string[] = [], swaps: string[] = []) =>
     http<OrderConfirmation>(`/customers/${encodeURIComponent(id)}/grocery-order/approve`, {
       method: "POST",
-      body: JSON.stringify({ plan_id, include_treats, delivery }),
+      body: JSON.stringify({ plan_id, include_treats, delivery, extras, swaps }),
     }),
+  swaps: (id: string) => http<SwapsResponse>(`/customers/${encodeURIComponent(id)}/swaps`),
   chat: (customer_id: string, message: string, history: ChatTurn[]) =>
     http<ChatResponse>(`/chat`, {
       method: "POST",
@@ -481,6 +525,10 @@ const mock: typeof real = {
     return { items: all.slice(offset, offset + limit), total: all.length, limit, offset };
   },
   safeToSpend: async () => (await wait(200), mockSafe),
+  swaps: async () => (
+    await wait(300),
+    { start: "2026-07-01", end: "2026-09-30", months: 3, monthly_saving_eur: 0, yearly_saving_eur: 0, swaps: [], note: "Mock data." }
+  ),
   // Values as logged in docs/DECISIONS.md for the demo customer (utility bills, Sep 2026).
   suggestions: async () => (
     await wait(200),

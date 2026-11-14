@@ -51,10 +51,41 @@ def _weekly_qty(total_qty: float, days: int, by_weight: bool) -> float:
     return float(max(Decimal(1), q.quantize(Decimal(1), rounding=ROUND_HALF_UP)))
 
 
-def plan_grocery_order(customer_id: str, include_treats: bool = False, delivery: str = "robot") -> dict[str, Any]:
-    """A week of the customer's usual groceries, from the last 3 complete months of receipts."""
+MAX_ADDED = 10
+
+
+def _product_line(p: dict, qty: float, unit: str, basket: str, **extra) -> dict[str, Any]:
+    """An order line for a real S-kaupat product, priced from the server's copy of the page price."""
+    unit_c = _cents(p["price_eur"])
+    return {"name": p["name"], "category": "S-kaupat product", "basket": basket, "qty": qty, "unit": unit,
+            "unit_price_eur": _eur(unit_c),
+            "line_total_eur": _eur(int((Decimal(unit_c) * Decimal(str(qty))).quantize(Decimal(1), rounding=ROUND_HALF_UP))),
+            "bought_on_trips": 0, "product_id": p["id"], "image": p.get("image"), "url": p["url"],
+            "price_source": p.get("price_source"), **extra}
+
+
+def _products(ids: list[str] | tuple[str, ...]) -> list[dict]:
+    from kukkaro.butler import products
+    ids = list(dict.fromkeys(ids))  # order kept, duplicates dropped
+    if len(ids) > MAX_ADDED:
+        raise metrics.DataError(f"At most {MAX_ADDED} added products")
+    out = []
+    for pid in ids:
+        p = products.get(pid)
+        if not p or p.get("price_eur") is None:
+            raise metrics.DataError(f"Unknown product or no price on its page: {pid}")
+        out.append(p)
+    return out
+
+
+def plan_grocery_order(customer_id: str, include_treats: bool = False, delivery: str = "robot",
+                       extras: list[str] | tuple[str, ...] = (), swaps: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
+    """A week of the customer's usual groceries, from the last 3 complete months of receipts.
+    `swaps`: product ids of S-Group own-brand products that replace the branded item they were found for.
+    `extras`: product ids the customer added from the Butler (one of each). Both are priced on the server."""
     if delivery not in DELIVERY:
         raise metrics.DataError(f"delivery must be one of {', '.join(DELIVERY)}")
+    swap_products, extra_products = _products(swaps), _products(extras)
     metrics.customer_profile(customer_id)  # UnknownCustomer -> 404
     today = metrics.get_today()
     start, end, _ = metrics.complete_months(today, 3)
@@ -90,6 +121,15 @@ def plan_grocery_order(customer_id: str, include_treats: bool = False, delivery:
     treats.sort(key=lambda x: -x["line_total_eur"])
 
     items = usual + (treats if include_treats else [])
+    for sp in swap_products:  # same food, store brand: replace the branded line, keep its quantity
+        i = next((k for k, x in enumerate(items) if x["name"] == sp.get("replaces")), None)
+        if i is None:
+            items.append(_product_line(sp, 1, "pcs", "MANDATORY_REGULAR", swapped_from=sp.get("replaces"), added="swap"))
+        else:
+            old_line = items[i]
+            items[i] = _product_line(sp, old_line["qty"], old_line["unit"], old_line["basket"],
+                                     swapped_from=old_line["name"], swapped_from_eur=old_line["line_total_eur"], added="swap")
+    items += [_product_line(p, 1, "pcs", "MANDATORY_REGULAR", added="butler") for p in extra_products]
     items_cents = sum(_cents(i["line_total_eur"]) for i in items)
     treats_cents = sum(_cents(t["line_total_eur"]) for t in treats)
     fee_cents = DELIVERY[delivery]["fee_cents"]
@@ -100,6 +140,8 @@ def plan_grocery_order(customer_id: str, include_treats: bool = False, delivery:
         "customer_id": customer_id,
         "based_on": {"start": start.isoformat(), "end": end.isoformat(), "receipts": len(receipts), "min_trips": MIN_TRIPS},
         "items": items,
+        "swaps": [x["product_id"] for x in items if x.get("added") == "swap"],
+        "extras": [x["product_id"] for x in items if x.get("added") == "butler"],
         "left_out": [] if include_treats else treats,
         "include_treats": include_treats,
         "items_total_eur": _eur(items_cents),
@@ -121,10 +163,11 @@ def plan_grocery_order(customer_id: str, include_treats: bool = False, delivery:
     return plan
 
 
-def approve_order(customer_id: str, plan_id: str, include_treats: bool, delivery: str) -> dict[str, Any]:
+def approve_order(customer_id: str, plan_id: str, include_treats: bool, delivery: str,
+                  extras: list[str] | tuple[str, ...] = (), swaps: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
     """Simulated approval: re-plans on the server (never trusts client totals), checks the plan is
     unchanged, and returns a confirmation. No order is placed, no money moves."""
-    plan = plan_grocery_order(customer_id, include_treats, delivery)
+    plan = plan_grocery_order(customer_id, include_treats, delivery, extras, swaps)
     if plan["plan_id"] != plan_id:
         raise metrics.DataError("The order changed since you reviewed it. Please review it again.")
     return {

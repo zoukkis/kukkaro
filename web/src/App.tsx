@@ -4,7 +4,9 @@ import Home from "./Home";
 import Chat from "./Chat";
 import Baskets from "./Baskets";
 import Butler from "./Butler";
-import { IconAsk, IconBaskets, IconButler, IconHouse, Mark } from "./Icons";
+import OrderCard from "./Order";
+import { OrderBasketProvider, useOrderBasket } from "./basket";
+import { IconAsk, IconBaskets, IconButler, IconClose, IconHouse, Mark, Robot } from "./Icons";
 
 type Tab = "home" | "baskets" | "chat" | "help";
 
@@ -16,6 +18,14 @@ const TABS: { id: Tab; label: string; Icon: typeof IconAsk }[] = [
 ];
 
 export default function App() {
+  return (
+    <OrderBasketProvider>
+      <Shell />
+    </OrderBasketProvider>
+  );
+}
+
+function Shell() {
   const [tab, setTab] = useState<Tab>("home");
   return (
     <div className="stage">
@@ -45,6 +55,7 @@ export default function App() {
             <Butler />
           </section>
         </main>
+        <OrderSheet />
         <nav className="tabbar" aria-label="Main">
           {TABS.map(({ id, label, Icon }) => (
             <button key={id} className="tab" aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>
@@ -55,5 +66,30 @@ export default function App() {
         </nav>
       </div>
     </div>
+  );
+}
+
+// Products added from Help (swaps, Butler products) go to the planned order. A pill opens it as a sheet.
+function OrderSheet() {
+  const basket = useOrderBasket();
+  if (basket.count === 0 && !basket.open) return null;
+  return (
+    <>
+      {!basket.open && (
+        <button className="order-pill" onClick={() => basket.setOpen(true)}>
+          <Robot size={22} /> Your order · {basket.count} added
+        </button>
+      )}
+      {basket.open && (
+        <div className="sheet-backdrop" onClick={() => basket.setOpen(false)}>
+          <div className="sheet" role="dialog" aria-label="Your grocery order" onClick={(e) => e.stopPropagation()}>
+            <button className="sheet-close" onClick={() => basket.setOpen(false)} aria-label="Close">
+              <IconClose />
+            </button>
+            <OrderCard />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
