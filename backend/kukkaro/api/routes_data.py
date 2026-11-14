@@ -71,6 +71,14 @@ def safe_to_spend(customer_id: str) -> dict[str, Any]:
     return metrics.safe_to_spend(customer_id)
 
 
+@router.get("/customers/{customer_id}/upcoming")
+def upcoming(customer_id: str) -> dict[str, Any]:
+    """Payments still expected before payday (Home "Coming up" card). An estimate from safe_to_spend and
+    recurring_payments: the demo data has no e-invoices (see kukkaro/data/upcoming.py)."""
+    from kukkaro.data.upcoming import upcoming_payments
+    return upcoming_payments(customer_id)
+
+
 class WhatIfRequest(BaseModel):
     category_or_item: str = Field(min_length=1, max_length=80)
     change_pct: float = Field(ge=-100, le=1000)

@@ -661,6 +661,17 @@ a { color: inherit; }
 .insight-kicker { font-size: 0.8rem; font-weight: 700; color: var(--green-ink); opacity: 0.8; }
 .insight-text { font-size: 1rem; color: var(--text); text-wrap: pretty; }
 .insight-body .link-button { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0; }
+.upcoming { display: flex; flex-direction: column; gap: 6px; }
+.upcoming-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 700; color: var(--green-ink); margin: 0; }
+.upcoming-list { list-style: none; margin: 0; padding: 0; }
+.upcoming-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.upcoming-list li:last-child { border-bottom: 0; }
+.upcoming .rising {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; min-height: 32px; padding: 0 10px;
+  border: 0; border-radius: 999px; background: var(--cream); color: var(--orange-ink); font-size: 0.8rem; font-weight: 700;
+}
+.upcoming-left { font-size: 0.95rem; margin: 4px 0 0; }
+.upcoming-note { font-size: 0.78rem; color: var(--muted); margin: 0; }
 .section-heading { font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 4px 0 10px; }
 .privacy-line { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; color: var(--muted); padding: 4px 4px 12px; }
 .privacy-line svg { flex: none; margin-top: 3px; color: var(--green); }
