@@ -44,7 +44,11 @@ ALIASES: dict[str, str] = {
 
 
 class DataError(ValueError):
-    """Bad input to a metric. The message is user-safe."""
+    """Bad input to a metric. The message is user-safe. The API answers 422."""
+
+
+class UnknownCustomer(DataError):
+    """The customer ID does not exist. The API answers 404."""
 
 
 # ---------- small helpers ----------
@@ -110,6 +114,14 @@ def get_today() -> date:
     return demo_today_env() or _dataset_bounds()[1]
 
 
+def warm_up(customer_id: str | None = None) -> None:
+    """Fill every cache once (dataset dates, category names, age-band medians) so no user request is slow."""
+    get_today()
+    _names()
+    if customer_id:
+        spender_profile(customer_id)
+
+
 def reset_caches() -> None:
     """Forget cached dataset facts (call after switching data folders, e.g. in tests)."""
     _dataset_bounds.cache_clear()
@@ -133,7 +145,7 @@ def complete_months(today: date, n: int) -> tuple[date, date, int]:
 
 def _check_customer(con, customer_id: str) -> None:
     if not con.execute("SELECT 1 FROM customers WHERE customer_id = ?", [customer_id]).fetchone():
-        raise DataError(f"Unknown customer {customer_id!r}")
+        raise UnknownCustomer(f"Unknown customer {customer_id!r}")
 
 
 @lru_cache(maxsize=1)
@@ -540,6 +552,44 @@ def recurring_payments(customer_id: str, today: date | str | None = None) -> dic
         "other_income": {"payments": other[0], "total_eur": _eur(other[1])},
         "note": "Utility bills have no merchant in this data, so electricity, water and internet cannot be told apart.",
     }
+
+
+TX_COLUMNS = ("tx_id", "customer_id", "bank_account_id", "tx_date", "tx_timestamp", "category", "subcategory",
+              "tx_amount_eur", "balance_after_eur", "transaction_type", "merchant_id", "mcc_code", "basket")
+
+
+def transactions_page(customer_id: str, limit: int = 50, offset: int = 0, basket: str | None = None,
+                      month: str | None = None) -> dict[str, Any]:
+    """One page of the customer's `tx_enriched` rows, newest first. Optional basket and month filters."""
+    if not 1 <= limit <= 500:
+        raise DataError("limit must be between 1 and 500")
+    if offset < 0:
+        raise DataError("offset cannot be negative")
+    if basket is not None and basket not in {b.value for b in Basket}:
+        raise DataError(f"basket must be one of {', '.join(b.value for b in Basket)}")
+    con = get_conn()
+    _check_customer(con, customer_id)
+    where, params = ["customer_id = ?"], [customer_id]
+    if basket:
+        where.append("basket = ?")
+        params.append(basket)
+    if month:
+        s, e = month_bounds(month)
+        where.append("tx_date BETWEEN ? AND ?")
+        params += [s, e]
+    cond = " AND ".join(where)
+    total = con.execute(f"SELECT count(*) FROM tx_enriched WHERE {cond}", params).fetchone()[0]
+    rows = con.execute(f"""SELECT {', '.join(TX_COLUMNS)} FROM tx_enriched WHERE {cond}
+                           ORDER BY tx_timestamp DESC, tx_id DESC LIMIT ? OFFSET ?""", params + [limit, offset]).fetchall()
+    items = []
+    for r in rows:
+        d = dict(zip(TX_COLUMNS, r))
+        d["tx_date"] = d["tx_date"].isoformat()
+        d["tx_timestamp"] = d["tx_timestamp"].isoformat()
+        d["tx_amount_eur"] = _eur(d["tx_amount_eur"])
+        d["balance_after_eur"] = _eur(d["balance_after_eur"])
+        items.append(d)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 def customer_profile(customer_id: str) -> dict[str, Any]:
