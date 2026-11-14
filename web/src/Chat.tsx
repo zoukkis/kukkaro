@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api, CUSTOMER_ID, type ChatResponse, type ChatTurn, type Provider } from "./api";
 import { formatFigure } from "./format";
-import { IconArrow, IconSend, IconShield, Mark } from "./Icons";
+import { IconArrow, IconSend, IconShield, Mark, Robot } from "./Icons";
+import OrderCard from "./Order";
 
 // S-Bank's four brief questions come first (web/AGENTS.md).
 const SUGGESTIONS = [
@@ -10,6 +11,13 @@ const SUGGESTIONS = [
   "What can I safely spend this week?",
   "How could I save more?",
 ];
+// Concept demo (Order.tsx): the coach prepares a grocery order for robot delivery; nothing is bought.
+const ERRAND = "Order my usual groceries";
+
+// The order card appears under an answer when the coach prepared an order.
+function orderCall(res?: ChatResponse) {
+  return res?.tool_calls.find((t) => t.name === "plan_grocery_order");
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -76,17 +84,29 @@ export default function Chat() {
                   </button>
                 </li>
               ))}
+              <li className="rise" style={stagger(7)}>
+                <button className="question errand" disabled={busy} onClick={() => send(ERRAND)}>
+                  <span className="errand-text">
+                    <span className="errand-tag mono">Concept · new</span>
+                    {ERRAND}
+                    <span className="errand-sub">I prepare it, you approve, a robot delivers.</span>
+                  </span>
+                  <Robot size={44} />
+                </button>
+              </li>
             </ul>
           </div>
         )}
 
-        {messages.map((m, i) =>
-          m.role === "user" ? (
+        {messages.map((m, i) => {
+          const order = orderCall(m.response);
+          return m.role === "user" ? (
             <div key={i} className="bubble user pop">
               {m.content}
             </div>
           ) : (
-            <div key={i} className="assistant-row pop">
+            <div key={i} className="assistant-turn">
+            <div className="assistant-row pop">
               <span className="avatar"><Mark size={26} /></span>
               <div className={`bubble assistant${m.error ? " error" : ""}${m.response?.number_check === "withheld" ? " notice" : ""}`}>
                 <p className="answer">{m.content}</p>
@@ -94,8 +114,10 @@ export default function Chat() {
                 {m.response && <HowIGotThis res={m.response} />}
               </div>
             </div>
-          ),
-        )}
+            {order && <OrderCard initialTreats={order.args.include_treats === true} />}
+            </div>
+          );
+        })}
 
         {busy && (
           <div className="assistant-row pop" aria-label="The coach is thinking">
@@ -110,7 +132,7 @@ export default function Chat() {
 
       {messages.length > 0 && (
         <div className="chips" aria-label="Suggested questions">
-          {SUGGESTIONS.map((s) => (
+          {[...SUGGESTIONS, ERRAND].map((s) => (
             <button key={s} className="chip" disabled={busy} onClick={() => send(s)}>
               {s}
             </button>

@@ -551,3 +551,88 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Concept demo: planned grocery order + robot delivery (Order.tsx) ---------- */
+.assistant-turn { display: flex; flex-direction: column; gap: 10px; }
+.question.errand {
+  background: var(--green-ink); border-color: var(--green-ink); color: #fff; min-height: 84px; padding: 14px 14px 14px 18px;
+}
+.question.errand:hover { border-color: var(--green-ink); box-shadow: 0 10px 30px -14px rgb(0 70 40 / 0.6); }
+.question.errand svg { width: 44px; height: 44px; padding: 0; background: none; border-radius: 0; }
+.question.errand:hover svg { transform: translateX(4px); }
+.errand-text { display: flex; flex-direction: column; gap: 3px; }
+.errand-tag { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mint); font-weight: 500; }
+.errand-sub { font-size: 0.82rem; font-weight: 500; opacity: 0.75; }
+
+.order-card { scroll-margin-top: 12px; margin-left: 34px; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.order-card.skeleton { height: 220px; }
+.order-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.order-title {
+  font-family: var(--display); font-stretch: 75%; font-weight: 900; font-size: 1.75rem; line-height: 1;
+  text-transform: uppercase; color: var(--green-ink); margin-top: 4px; text-wrap: balance;
+}
+.order-head .badge { flex: none; }
+.order-basis { font-size: 0.7rem; color: var(--muted); line-height: 1.5; }
+.order-items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.order-items li { display: flex; align-items: center; gap: 10px; min-height: 40px; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.order-items li.treat .order-name, .order-items li.treat strong { color: var(--pink-ink); }
+.order-qty { flex: none; width: 46px; font-size: 0.74rem; color: var(--muted); }
+.order-name { flex: 1; min-width: 0; }
+.order-items strong { font-size: 0.84rem; font-weight: 600; }
+.link-button {
+  align-self: flex-start; border: 0; background: none; padding: 0; min-height: 32px;
+  color: var(--green-ink); font-weight: 700; font-size: 0.88rem; text-decoration: underline; text-underline-offset: 3px;
+}
+.treats {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-radius: var(--r-md); background: var(--everyday-soft);
+}
+.treats > div { display: flex; flex-direction: column; gap: 2px; }
+.treats strong { color: var(--pink-ink); font-size: 0.92rem; }
+.treats.on { background: var(--cream); }
+.treats.on strong { color: var(--orange-ink); }
+.small-button { min-height: 38px; padding: 0 14px; font-size: 0.85rem; flex: none; }
+.delivery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.delivery-option {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 92px; padding: 8px 4px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--green-ink); text-align: center;
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease), box-shadow 0.2s;
+}
+.delivery-option:hover { border-color: var(--green-ink); }
+.delivery-option[aria-checked="true"] { border: 2px solid var(--green-ink); background: var(--mint-soft); }
+.delivery-label { font-size: 0.78rem; font-weight: 700; line-height: 1.2; }
+.delivery-fee { font-size: 0.7rem; color: var(--muted); }
+.order-sum { margin: 0; display: grid; }
+.order-sum div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; }
+.order-sum dt { color: var(--muted); font-size: 0.9rem; }
+.order-sum dd { margin: 0; font-weight: 600; }
+.order-sum .order-total { border-top: 2px solid var(--green-ink); margin-top: 4px; padding-top: 10px; }
+.order-sum .order-total dt { color: var(--green-ink); font-weight: 700; }
+.order-sum .order-total dd { font-size: 1.2rem; font-weight: 700; color: var(--green-ink); }
+.fit { padding: 10px 12px; border-radius: var(--r-sm); font-size: 0.88rem; font-weight: 600; }
+.fit.ok { background: var(--mint-soft); color: var(--green-ink); }
+.fit.over { background: var(--everyday-soft); color: var(--pink-ink); }
+.button.approve { width: 100%; min-height: 52px; font-size: 1rem; }
+.concept-note { font-family: var(--mono); font-size: 0.66rem; line-height: 1.5; color: var(--muted); text-align: center; }
+
+/* The delivery: our own generic robot drives from the store to your door */
+.road {
+  position: relative; height: 92px; border-radius: var(--r-md); overflow: hidden;
+  background:
+    linear-gradient(transparent 70px, var(--line) 70px 72px, transparent 72px),
+    repeating-linear-gradient(90deg, #cfd8d4 0 10px, transparent 10px 20px) 0 80px / 100% 2px no-repeat,
+    var(--bg);
+}
+.road-store { position: absolute; left: 10px; top: 10px; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.road-home {
+  position: absolute; right: 10px; top: 26px; width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--mint); color: var(--green-ink);
+}
+.road-bot { position: absolute; bottom: 14px; left: 6px; transition: left 2.4s var(--ease); animation: trundle 0.5s infinite alternate ease-in-out; }
+.road[data-stage="1"] .road-bot { left: 14%; }
+.road[data-stage="2"] .road-bot { left: 52%; }
+.road.arrived .road-bot { left: calc(100% - 118px); animation: none; }
+.road.arrived .road-home { box-shadow: 0 0 0 6px rgb(145 250 155 / 0.45); }
+@keyframes trundle { to { transform: translateY(-2px); } }
+.tracking .stages li.done .stage-n, .tracking .stages li.now .stage-n { color: var(--green); }
+.tracking .stages li { border-top-color: var(--line); }

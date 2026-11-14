@@ -46,6 +46,31 @@ export const IconShield = ({ size = 16 }: P) =>
 export const IconTrend = ({ size = 18 }: P) =>
   svg(size, <><path d="m4 16 5-5 3.5 3.5L20 7" /><path d="M15 7h5v5" /></>);
 
+// A generic six-wheeled sidewalk delivery robot (our own drawing, no company's design or logo).
+export const Robot = ({ size = 56 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden focusable="false">
+    <line x1="44" y1="14" x2="48" y2="4" stroke="var(--green-ink)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M48 4l7 2.5-6 3z" fill="var(--everyday)" />
+    <rect x="10" y="14" width="44" height="30" rx="9" fill="#ffffff" stroke="var(--green-ink)" strokeWidth="2.5" />
+    <rect x="10" y="30" width="44" height="6" fill="var(--mint)" />
+    <rect x="16" y="19" width="16" height="7" rx="3.5" fill="var(--green-ink)" />
+    <circle cx="20" cy="22.5" r="1.6" fill="var(--mint)" />
+    <circle cx="28" cy="22.5" r="1.6" fill="var(--mint)" />
+    <rect x="8" y="42" width="48" height="4" rx="2" fill="var(--green-ink)" />
+    {[16, 32, 48].map((x) => (
+      <g key={x}>
+        <circle cx={x} cy="52" r="7" fill="var(--green-ink)" />
+        <circle cx={x} cy="52" r="2.6" fill="#ffffff" />
+      </g>
+    ))}
+  </svg>
+);
+
+export const IconHouse = ({ size = 22 }: P) =>
+  svg(size, <><path d="M4 11 12 4.5 20 11" /><path d="M6 9.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5" /><path d="M10 20v-5h4v5" /></>);
+
+export const IconClose = ({ size = 20 }: P) => svg(size, <><path d="M6 6l12 12M18 6 6 18" /></>);
+
 // The brand mark: a small coin purse ("kukkaro" is Finnish for purse).
 export const Mark = ({ size = 28 }: P) => (
   <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden focusable="false">
