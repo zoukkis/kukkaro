@@ -1,12 +1,13 @@
 """Kukkaro Butler: finds money the user is missing on the live web (Exa), always with sources.
 
-`run(customer_id, task)` does four steps:
-1. Context from DATA tools only (age, postal code, rent, utility bills and their change, salary).
-2. Plan 1-4 Exa searches (Gemini, JSON), official Finnish sites first.
-3. Run them in parallel (cached on disk) and number the sources.
-4. Answer from the sources only (Gemini, JSON): every claim cites [n]; next steps; and a ready-to-send
-   draft (email or form prep) that the user reviews and sends from their own app. The Butler never
-   sends or submits anything, and never says someone "is eligible".
+Privacy design (root AGENTS.md §4): the Butler crosses both zones through the privacy gateway.
+1. Trusted zone: the user's situation from DATA tools only (age, postal code, rent, bills, salary).
+2. Gateway (coach/privacy.py): the task is checked in code and sent on as ONE anonymised question with
+   banded context ("Espoo region, age 20–25"); a leaking task is rewritten once by Gemma, else refused.
+3. Public zone (butler/research.py): Exa + Gemini find facts with sources from that question only.
+4. Trusted zone: Gemma (Gemini as backup) combines the facts with the user's own figures: every claim
+   cites [n]; next steps; and a ready-to-send draft (email or form prep) that the user reviews and sends
+   from their own app. The Butler never sends or submits anything, and never says someone "is eligible".
 
 Code-level guards: citations must point at real sources, a draft's `to` address must appear in a
 source, and numbers in the answer must come from the user's data or the sources (else listed in
@@ -19,12 +20,14 @@ import time
 from datetime import date
 from typing import Any
 
-from kukkaro.butler import exa_client
-from kukkaro.coach import llm, numbers
+from kukkaro.butler import exa_client, research
+from kukkaro.coach import llm, numbers, privacy
+from kukkaro.coach.prompts import S_GROUP_RULE
 from kukkaro.data import metrics
 
-MAX_SOURCES = 8
-HIGHLIGHT_CHARS_PER_SOURCE = 900
+TRUSTED_PROVIDER = "gemma"    # sees the customer's data (root AGENTS.md §4)
+FALLBACK_PROVIDER = "gemini"  # backup for the trusted step, only if Gemma fails
+
 
 
 def user_context(customer_id: str) -> dict[str, Any]:
@@ -48,24 +51,6 @@ def user_context(customer_id: str) -> dict[str, Any]:
         "notes": "Bank data only. Utility bills have no merchant, so electricity, water and internet cannot be told apart.",
     }
 
-
-PLAN_SYSTEM = """You plan web searches for Kukkaro Butler, an assistant inside a Finnish banking app that finds \
-money people are missing: benefits, fair prices and their consumer rights. The user lives in Finland. \
-Plan 1 to 4 short search queries that will find current, specific information for the task. Use Finnish \
-for official Finnish topics (benefits, housing, taxes, consumer rights) and add an English query if useful. \
-Set official_only=true for benefits, laws, taxes and rights (Kela, Vero, KKV, Finlex, suomi.fi); set it false \
-for market prices and offers (e.g. electricity contracts), where comparison and seller sites are needed."""
-
-PLAN_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "searches": {"type": "array", "minItems": 1, "maxItems": 4, "items": {
-            "type": "object",
-            "properties": {"query": {"type": "string"}, "official_only": {"type": "boolean"}},
-            "required": ["query", "official_only"]}},
-    },
-    "required": ["searches"],
-}
 
 ANSWER_SYSTEM = """You are Kukkaro Butler inside the S-mobiili banking app. You do the digging; the user decides.
 Rules:
@@ -92,6 +77,7 @@ what to enter, where, and with which of the user's figures. Set source_n to the 
 form or offer. Use kind "none" only if truly nothing can be prepared.
 7. You are not a lawyer or a licensed financial advisor; never recommend loans, investments or specific \
 financial products."""
+ANSWER_SYSTEM += "\n8. " + S_GROUP_RULE
 
 ANSWER_SCHEMA = {
     "type": "object",
@@ -119,20 +105,6 @@ def _soften_eligibility(text: str) -> str:
         out = f"you may be {word}"
         return out[0].upper() + out[1:] if m.group(0)[0].isupper() else out
     return _ELIGIBLE.sub(repl, text)
-
-
-def _sources(results: list[dict]) -> list[dict]:
-    seen, out = set(), []
-    for res in results:
-        for r in res.get("results", []):
-            if r["url"] in seen or not r.get("highlights"):
-                continue
-            seen.add(r["url"])
-            out.append({"n": len(out) + 1, "title": r["title"], "url": r["url"], "published_date": r.get("published_date"),
-                        "text": " … ".join(r["highlights"])[:HIGHLIGHT_CHARS_PER_SOURCE]})
-            if len(out) >= MAX_SOURCES:
-                return out
-    return out
 
 
 SUGGESTION_THRESHOLD_PCT = 25
@@ -175,7 +147,7 @@ def _answer_cache_path(customer_id: str, task: str):
     return d / f"{hashlib.sha256(key.encode()).hexdigest()[:24]}.json"
 
 
-def run(customer_id: str, task: str, provider: str | None = "gemini", use_cache: bool = True) -> dict[str, Any]:
+def run(customer_id: str, task: str, use_cache: bool = True) -> dict[str, Any]:
     """The Butler answer. The same task for the same customer within 24 h comes back from the disk
     cache (`cached: true`, under a second), so the recorded demo is repeatable; new tasks go live."""
     import json
@@ -185,40 +157,61 @@ def run(customer_id: str, task: str, provider: str | None = "gemini", use_cache:
     if use_cache and path.exists() and time.time() - path.stat().st_mtime < ANSWER_CACHE_MAX_AGE_H * 3600:
         out = json.loads(path.read_text(encoding="utf-8"))
         return {**out, "cached": True, "seconds": round(time.monotonic() - t0, 2)}
-    out = _run_live(customer_id, task, provider, t0)
+    out = _run_live(customer_id, task, t0, use_cache)
     if not out.get("error"):  # never cache a failure
         path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     return {**out, "cached": False}
 
 
-def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> dict[str, Any]:
-    ctx = user_context(customer_id)
-    today = date.today().isoformat()  # web facts are about the real present, not the dataset's last date
+ANON_SYSTEM = """Rewrite the user's request as ONE general web-search question that contains no personal details: \
+no names, IDs, emails, phone numbers, addresses, postal codes, exact ages or exact euro amounts. Keep the topic. \
+Round any amount to tens ("around 140 €") and use an age band ("age 20–25") or a region instead."""
+ANON_SCHEMA = {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}
 
-    plan, plan_run = llm.complete_json(PLAN_SYSTEM, f"Today is {today}.\nTask: {task}\nUser context: {llm.dumps(ctx)}",
-                                       PLAN_SCHEMA, provider)
-    searches = (plan or {}).get("searches") or [{"query": task, "official_only": False}]
-    queries = [{"query": s["query"], "domains": exa_client.OFFICIAL_DOMAINS if s.get("official_only") else None}
-               for s in searches[:4]]
-    t_search = time.monotonic()
-    results = exa_client.search_many(queries)
-    search_s = round(time.monotonic() - t_search, 2)
-    sources = _sources(results)
 
-    base = {"customer_id": customer_id, "task": task, "context": ctx,
-            "searches": [{"query": r["query"], "official_only": bool(r["domains"]), "cached": r.get("cached", False),
-                          "results": len(r.get("results", [])), "error": r.get("error")} for r in results]}
+def anonymised_question(task: str, ctx: dict[str, Any]) -> tuple[str | None, list[str]]:
+    """The privacy gateway for the Butler: the user's task, checked in code (coach/privacy.py) before it
+    leaves the trusted zone, plus banded context. If the task leaks something, the trusted-zone model
+    (Gemma) rewrites it once; if that still leaks, nothing is sent. Returns (question or None, problems)."""
+    v = privacy.check(task, [ctx])
+    if not v.ok:
+        out, _ = llm.complete_json(ANON_SYSTEM, task, ANON_SCHEMA, TRUSTED_PROVIDER)
+        v2 = privacy.check((out or {}).get("question", ""), [ctx])
+        if not v2.ok:
+            return None, v.problems
+        v = v2
+    with_ctx = privacy.check(f"{v.question} ({privacy.banded_context(ctx)})", [ctx])
+    return (with_ctx.question if with_ctx.ok else v.question), []
+
+
+def _run_live(customer_id: str, task: str, t0: float, use_cache: bool = True) -> dict[str, Any]:
+    ctx = user_context(customer_id)                       # trusted zone: the customer's own data
+    today = date.today().isoformat()                      # web facts are about the real present
+    question, blocked = anonymised_question(task, ctx)    # privacy gateway
+    base = {"customer_id": customer_id, "task": task, "context": ctx, "zones": ["trusted"], "fallback": False,
+            "research": {"question_sent": question, "blocked": blocked}}
+    if question is None:
+        return {**base, "answer": privacy.REFUSAL_TEXT, "sources": [], "next_steps": [], "draft": None,
+                "unverified_numbers": [], "model": None, "seconds": round(time.monotonic() - t0, 2), "error": "blocked"}
+
+    found = research.research(question, use_cache=use_cache)   # public zone: Exa + Gemini, question only
+    sources = found["sources"]
+    base.update(zones=["trusted", "public"], searches=found.get("searches", []),
+                research={"question_sent": question, "blocked": [], "kind": found.get("kind"), "facts": found["facts"]})
     if not sources:
         return {**base, "answer": "I couldn't find reliable sources for this right now, so I won't guess. Please try "
                 "again in a moment or rephrase the question.", "sources": [], "next_steps": [], "draft": None,
-                "unverified_numbers": [], "model": plan_run.model, "seconds": round(time.monotonic() - t0, 2),
+                "unverified_numbers": [], "model": found.get("model"), "seconds": round(time.monotonic() - t0, 2),
                 "error": "no sources"}
 
+    facts = "\n".join("- " + f["text"] + " " + "".join(f"[{n}]" for n in f["sources"]) for f in found["facts"]) or "(none)"
     src_block = "\n\n".join(f"[{s['n']}] {s['title']} ({s['url']}, published {s['published_date'] or 'unknown'})\n{s['text']}"
                             for s in sources)
     prompt = (f"Today is {today}.\nTask from the user: {task}\n\nThe user's bank data (from Kukkaro's tools):\n"
-              f"{llm.dumps(ctx)}\n\nSources:\n{src_block}")
-    out, ans_run = llm.complete_json(ANSWER_SYSTEM, prompt, ANSWER_SCHEMA, provider)
+              f"{llm.dumps(ctx)}\n\nFacts found by the research service:\n{facts}\n\nSources:\n{src_block}")
+    # Trusted zone again: Gemma combines the public facts with the customer's own figures; Gemini is the backup.
+    out, ans_run = llm.complete_json(ANSWER_SYSTEM, prompt, ANSWER_SCHEMA, TRUSTED_PROVIDER, FALLBACK_PROVIDER)
+    base["fallback"] = ans_run.fallback_used
     if not out:
         return {**base, "answer": llm.FALLBACK_TEXT, "sources": [{k: s[k] for k in ("n", "title", "url", "published_date")}
                 for s in sources], "next_steps": [], "draft": None, "unverified_numbers": [], "model": ans_run.model,
@@ -227,7 +220,7 @@ def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> d
     valid = {s["n"] for s in sources}
     answer = llm.plain(_soften_eligibility(_CITE.sub(lambda m: m.group(0) if int(m.group(1)) in valid else "", out["answer"])))
     cited = {int(n) for n in _CITE.findall(answer)}
-    all_text = " ".join(s["text"] + " " + s["url"] for s in sources)
+    all_text = " ".join(s["text"] + " " + s["url"] for s in sources) + " " + facts
 
     draft = out.get("draft") or {}
     if draft.get("kind") in (None, "none") or not draft.get("body"):
@@ -259,7 +252,8 @@ def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> d
         "draft": draft,
         "unverified_numbers": unverified,
         "model": ans_run.model,
+        "host": ans_run.host,
         "seconds": round(time.monotonic() - t0, 2),
-        "timing": {"plan_s": plan_run.seconds, "search_s": search_s, "answer_s": ans_run.seconds},
+        "timing": {"research_s": found.get("seconds"), "answer_s": ans_run.seconds},
         "error": None,
     }

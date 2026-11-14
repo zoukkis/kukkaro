@@ -148,15 +148,72 @@ if receipts is not None:
     })
 
 
-def executor(customer_id: str) -> Callable[[str, dict], dict[str, Any]]:
-    """`execute(name, args)` bound to one customer. Bad input comes back as {"error": ...} for the model."""
-    def execute(name: str, args: dict) -> dict[str, Any]:
+RESEARCH_SPEC = ToolSpec(
+    "research_web",
+    "Look up CURRENT outside information on the public web (prices, offers, Kela benefits, rent rules, consumer "
+    "rights, where to buy a product). A separate public research service answers it from web pages with sources; "
+    "it never sees the customer's data. Write ONE general question with no personal details: no IDs, no exact "
+    "euro amounts (use rounded context like 'around 140 €'), no exact age (use a band like 'age 20–25'), no postal "
+    "code (use the region). Returns facts, each with source numbers, and the numbered sources.",
+    {"type": "object", "properties": {"question": {"type": "string", "description": "The anonymised question, max 300 characters"}},
+     "required": ["question"]},
+)
+SPECS.append(RESEARCH_SPEC)
+
+BLOCKED_HINT = ("Not sent: the question contains {problems}. Rewrite it as a general question without personal details "
+                "(round amounts to tens, use an age band and the region) and call research_web again, or answer without "
+                "the web search.")
+
+
+class Executor:
+    """`execute(name, args)` bound to one customer. Bad input comes back as {"error": ...} for the model.
+
+    It also is the privacy gateway's hook: every tool result is remembered, so `research_web` can block a
+    question that repeats one of the customer's exact figures. A blocked question gets one rewrite (by the
+    model), the second block refuses. `research_log` records what was sent (sanitised text only) for
+    "How I got this"."""
+
+    def __init__(self, customer_id: str):
+        self.customer_id = customer_id
+        self.results: list[Any] = []
+        self.research_log: list[dict[str, Any]] = []
+        self.blocked = 0
+        try:
+            p = metrics.customer_profile(customer_id)
+            self.results.append({"age": p.get("age"), "postal_code_number": int(p["postal_code"]) if str(p.get("postal_code") or "").isdigit() else None})
+        except Exception:
+            pass
+
+    def __call__(self, name: str, args: dict) -> dict[str, Any]:
+        if name == "research_web":
+            return self._research((args or {}).get("question", ""))
         if name not in _FUNCS:
             return {"error": f"Unknown tool {name!r}"}
         try:
-            return _FUNCS[name](customer_id, args or {})
+            out = _FUNCS[name](self.customer_id, args or {})
         except metrics.DataError as e:
             return {"error": str(e)}
         except KeyError as e:
             return {"error": f"Missing argument {e}"}
-    return execute
+        self.results.append(out)
+        return out
+
+    def _research(self, question: str) -> dict[str, Any]:
+        from kukkaro.butler import research
+        from kukkaro.coach import privacy
+
+        v = privacy.check(question, self.results)
+        if not v.ok:
+            self.blocked += 1
+            self.research_log.append({"question_sent": None, "blocked": v.problems, "sources": []})
+            if self.blocked >= 2:
+                return {"refused": True, "message": privacy.REFUSAL_TEXT}
+            return {"error": BLOCKED_HINT.format(problems=", ".join(v.problems))}
+        r = research.public_view(research.research(v.question))
+        self.research_log.append({"question_sent": v.question, "blocked": [], "kind": r["kind"],
+                                  "sources": r["sources"], "facts": len(r["facts"]), "error": r["error"]})
+        return r
+
+
+def executor(customer_id: str) -> Executor:
+    return Executor(customer_id)

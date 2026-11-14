@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { api, CUSTOMER_ID, type ChatResponse, type ChatTurn, type Provider } from "./api";
+import { api, CUSTOMER_ID, type ChatResponse, type ChatTurn } from "./api";
 import { formatFigure } from "./format";
 import { IconArrow, IconSend, IconShield, Mark, Robot } from "./Icons";
 import OrderCard from "./Order";
@@ -32,7 +32,6 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [provider, setProvider] = useState<Provider>("gemini");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +49,7 @@ export default function Chat() {
     setInput("");
     setBusy(true);
     try {
-      const res = await api.chat(CUSTOMER_ID, message, history, provider);
+      const res = await api.chat(CUSTOMER_ID, message, history);
       setMessages((ms) => [...ms, { role: "assistant", content: res.answer, response: res }]);
     } catch {
       setMessages((ms) => [
@@ -141,15 +140,6 @@ export default function Chat() {
       )}
 
       <div className="dock">
-        <div className="model-switch" role="group" aria-label="Which model answers">
-          <span className="model-switch-label">Model</span>
-          <button aria-pressed={provider === "gemini"} onClick={() => setProvider("gemini")} disabled={busy}>
-            Gemini
-          </button>
-          <button aria-pressed={provider === "gemma"} onClick={() => setProvider("gemma")} disabled={busy}>
-            Gemma 4 <span className="dim">· open</span>
-          </button>
-        </div>
         <form
           className="composer"
           onSubmit={(e) => {
@@ -172,19 +162,48 @@ export default function Chat() {
   );
 }
 
-// Which model answered. "EU privacy mode" only when the answer really came from Verda (overseer decision E).
+// Privacy labels instead of a model picker (root AGENTS.md §4). Gemma (the trusted zone) is the only model
+// that sees the customer's data; "in the EU" only when it really runs on Verda.
 function AnswerMeta({ res }: { res: ChatResponse }) {
   if (!res.model || res.model === "mock") return null;
-  if (res.host === "verda") {
-    return (
-      <p className="answer-meta eu">
-        <IconShield /> EU privacy mode · Gemma 4 on Verda
-      </p>
-    );
-  }
+  const web = res.zones?.includes("public") ?? false;
+  const where = res.trusted_host === "verda" ? "open model in the EU" : "open model";
   return (
-    <p className="answer-meta">{res.provider === "gemma" ? "Open model · Gemma 4 (via Google API)" : `Gemini · ${res.model}`}</p>
+    <div className="answer-labels">
+      {!res.fallback && (
+        <p className="answer-meta private">
+          <IconShield /> Answered privately with your own data · {where}
+        </p>
+      )}
+      {res.fallback && <p className="answer-meta backup">↩︎ Backup model used</p>}
+      {web && (
+        <>
+          <p className="answer-meta web">🌐 Also searched public sources</p>
+          {res.sources && res.sources.length > 0 && (
+            <ol className="answer-sources">
+              {res.sources.map((s) => (
+                <li key={s.url}>
+                  <span className="src-n">{s.n}</span>
+                  <a href={s.url} target="_blank" rel="noreferrer">
+                    {s.title || s.url}
+                    <span className="src-meta">{hostOf(s.url)}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
+      )}
+    </div>
   );
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
 
 function HowIGotThis({ res }: { res: ChatResponse }) {
@@ -205,6 +224,14 @@ function HowIGotThis({ res }: { res: ChatResponse }) {
             </li>
           ))}
         </ul>
+      )}
+      {res.research && res.research.length > 0 && (
+        <div className="tools sent">
+          <span>Sent to the web search (no personal data):</span>
+          {res.research.map((r, i) =>
+            r.question_sent ? <q key={i}>{r.question_sent}</q> : <em key={i}>Not sent: it contained {r.blocked.join(", ")}</em>,
+          )}
+        </div>
       )}
       {res.tool_calls.length > 0 && (
         <div className="tools">

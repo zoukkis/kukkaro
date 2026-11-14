@@ -69,10 +69,28 @@ to the user comes from a deterministic Python function (a "tool") that queries D
 chooses tools, then explains the results in plain language. If a tool cannot answer, the LLM
 says so.
 
-**LLM providers** (switch with `LLM_PROVIDER` in `.env`):
-- `gemini` (default): Gemini API with function calling. Also used for receipt-photo reading (stretch).
-- `gemma` ("EU privacy mode"): Gemma 4. First through the Gemini API (same key), later
-  self-hosted with vLLM in a **Verda** Serverless Container. Same tools, same prompts.
+**Privacy boundary: one assistant, models split by who may see what data** (decided 14 Nov, see
+docs/DECISIONS.md). There is no model picker in the UI.
+
+```
+ TRUSTED ZONE (sees the customer's data)        GATEWAY (code)               PUBLIC ZONE (no customer data)
+ Gemma 4 = assistant / orchestrator  --research_web(question)-->  coach/privacy.py  -->  butler/research.py
+ deterministic tools over DuckDB                 blocks IDs, postal codes,    Exa search + contents,
+ (numbers only from tools)                       exact amounts/ages, names,   Gemini writes facts ONLY from
+          ^                                      emails, phones; 1 rewrite,   the pages, a source per fact
+          |                                      then refuse; logs the text
+          +------------------------- {facts[], sources[{title,url}]} ------------------------+
+```
+- **Trusted zone:** Gemma 4 (`GEMMA_MODEL`) is the only model that sees personal data. It answers
+  with the deterministic tools. Provider: through the Gemini API key (stage 1, "open model"), or the
+  OpenAI-compatible endpoint in `GEMMA_BASE_URL` (stage 2: vLLM on **Verda**, "open model in the EU").
+  Both paths live in `coach/llm.py`.
+- **Gateway:** `coach/privacy.py` checks every outgoing question in code. Only rounded or banded
+  context leaves ("around 140 €", "age 20–25", "Espoo region").
+- **Public zone:** `butler/research.py` (Exa + Gemini) answers the anonymised question from web pages.
+  `POST /api/butler` uses the same gateway and worker.
+- **Fallback:** if Gemma errors, times out or fails the number check, it gets one retry, then Gemini
+  answers that turn and the UI shows "Backup model used". The backup sees the same data Gemma would.
 
 ## 5. Shared contracts (all workstreams depend on these — change only via docs/DECISIONS.md + human OK)
 
@@ -123,8 +141,8 @@ delivery fee, which counts as `EVERYDAY`.
 | `GET /api/transactions/{tx_id}/receipt` | Receipt (5.3) or 404 if not a grocery purchase |
 | `GET /api/customers/{id}/safe-to-spend` | `{amount_eur, until_date, per_day_eur, this_week_eur, status, explanation_inputs}` (`amount_eur` = until next salary; `this_week_eur` answers "What can I safely spend this week?") |
 | `POST /api/customers/{id}/what-if` | body `{category_or_item, change_pct}` → `{monthly_eur, yearly_eur}` |
-| `POST /api/chat` | body `{customer_id, message, history[]}` → `{answer, tool_calls[], figures[]}` |
-| `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[]}` |
+| `POST /api/chat` | body `{customer_id, message, history[]}` → `{answer, tool_calls[], figures[], zones[], fallback, trusted_host, research[], sources[], number_check, model, host}` — `zones` is `["trusted"]` or `["trusted","public"]` (the web was searched); `fallback` = the backup model answered; `research[].question_sent` = the sanitised text that left the trusted zone; `sources[{n,title,url}]` |
+| `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[], draft, zones[], fallback, research{question_sent}}` |
 
 Every response that contains synthetic receipt data must include `"synthetic": true` so the UI can label it.
 
@@ -151,6 +169,12 @@ visible "everyday" leaks, some irregular expense) and writes the reasoning in do
 
 ## 7. Product rules (apply to every user-facing string)
 
+- **S-Group rule:** when recommending where to buy groceries or everyday products, or giving
+  product or price examples, suggest only S-Group chains (S-market, Prisma, Alepa, Sale, S-kaupat
+  online) and S-Group's own brands. Never recommend or name other grocery chains (K-Group, Lidl…),
+  never disparage them, never claim S-Group is cheapest unless a source says so. Official topics
+  (Kela, rent rules, electricity contracts, debt advice) stay neutral with official sources. The rule
+  is in the prompts (`coach/prompts.py` `S_GROUP_RULE`) and in code (Exa domains, competitor filters).
 - Kukkaro is a **coach**, not an advisor: it explains and suggests, it never recommends specific
   investments, loans or financial products, and never moves money.
 - Plain, friendly language. English UI is fine; Finnish touches welcome.

@@ -30,7 +30,11 @@ first; the desktop view can just center the phone-width layout.
 4. **What-if**: pick a category or item plus a slider (−100% … +50%) → monthly and yearly euros.
 5. **Butler**: task input plus 3 example chips, answer with numbered source links and a
    next-steps checklist. Needs a loading state (Exa calls take a few seconds).
-6. **Privacy toggle**: "EU privacy mode (Gemma on Verda)". Shows which model answered.
+6. **Privacy labels, no model picker** (decided 14 Nov): each answer shows labels from `/api/chat`:
+   🔒 "Answered privately with your own data" (trusted zone; "· open model", or "· open model in the
+   EU" only when `trusted_host` is `"verda"`), 🌐 "Also searched public sources" + numbered source
+   links (when `zones` includes `"public"`), ↩︎ "Backup model used" (when `fallback`). "How I got this"
+   shows the exact question that was sent to the web search.
 
 ## Rules
 - Call only the endpoints in root AGENTS.md §5.4 via one `src/api.ts`. If you need a new endpoint,
