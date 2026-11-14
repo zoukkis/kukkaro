@@ -141,6 +141,11 @@ visible "everyday" leaks, some irregular expense) and writes the reasoning in do
 - Plain, friendly language. English UI is fine; Finnish touches welcome.
 - Always show where a number came from (which period, which basket). Butler always shows source links.
 - Anything synthetic is visibly labelled "synthetic example data".
+- **Gemma Terms of Use + Prohibited Use Policy apply to every model output** (ai.google.dev/gemma/terms,
+  ai.google.dev/gemma/prohibited_use_policy). In practice: no automated decisions about money,
+  housing or social benefits (the Butler says "you may be eligible, here's how to check", and the
+  human decides); never present Kukkaro as a licensed financial or legal advisor; no claims of
+  expertise it doesn't have; no real personal data. Never commit Gemma weights to the repo.
 
 ## 8. Out of scope — do NOT build
 
