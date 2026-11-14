@@ -54,11 +54,11 @@ def _cache_path(key: dict):
 def search(query: str, domains: list[str] | None = None, num_results: int = 5, search_type: str = "auto",
            highlights_chars: int = 1200, max_age_h: float = CACHE_MAX_AGE_H,
            exclude: list[str] | None = None) -> dict[str, Any]:
-    """Returns {query, domains, results: [{title, url, published_date, highlights[]}], cached, seconds}.
+    """Returns {query, domains, results: [{title, url, published_date, image, highlights[]}], cached, seconds}.
     Errors come back as {"error": ...} with no results, never raised. Exa allows include OR exclude
     domains, so `exclude` only applies when `domains` is empty."""
     exclude = None if domains else exclude
-    key = {"q": query.strip(), "d": sorted(domains or []), "n": num_results, "t": search_type, "h": highlights_chars}
+    key = {"q": query.strip(), "d": sorted(domains or []), "n": num_results, "t": search_type, "h": highlights_chars, "v": 2}
     if exclude:
         key["x"] = sorted(exclude)
     path = _cache_path(key)
@@ -77,6 +77,7 @@ def search(query: str, domains: list[str] | None = None, num_results: int = 5, s
         return {"query": query, "domains": domains or [], "results": [], "error": msg, "cached": False,
                 "seconds": round(time.monotonic() - t0, 2)}
     results = [{"title": (r.title or r.url or "").strip(), "url": r.url, "published_date": r.published_date,
+                "image": getattr(r, "image", None),  # the page's preview picture (a product photo on S-kaupat)
                 "highlights": [h.strip() for h in (r.highlights or []) if h and h.strip()]}
                for r in resp.results if getattr(r, "url", None)]
     data = {"query": query, "domains": domains or [], "results": results}

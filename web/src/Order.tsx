@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, CUSTOMER_ID, type DeliveryOption, type GroceryPlan, type OrderConfirmation } from "./api";
 import { formatEur } from "./format";
-import { IconHouse, Robot } from "./Icons";
+import { useOrderBasket } from "./basket";
+import { IconClose, IconHouse, Robot } from "./Icons";
 
 const SHOWN = 5;
 const STAGES: Record<DeliveryOption, string[]> = {
@@ -21,25 +22,26 @@ export default function OrderCard({ initialTreats = false }: { initialTreats?: b
   const [showAll, setShowAll] = useState(false);
   const [approving, setApproving] = useState(false);
   const [done, setDone] = useState<OrderConfirmation | null>(null);
+  const basket = useOrderBasket();
 
   useEffect(() => {
     let live = true;
     setError(null);
     api
-      .groceryPlan(CUSTOMER_ID, includeTreats, delivery)
+      .groceryPlan(CUSTOMER_ID, includeTreats, delivery, basket.extras, basket.swaps)
       .then((p) => live && setPlan(p))
       .catch(() => live && setError("I couldn't prepare the order just now. Please try again."));
     return () => {
       live = false;
     };
-  }, [includeTreats, delivery]);
+  }, [includeTreats, delivery, basket.extras, basket.swaps]);
 
   async function approve() {
     if (!plan) return;
     setApproving(true);
     setError(null);
     try {
-      setDone(await api.approveOrder(CUSTOMER_ID, plan.plan_id, includeTreats, delivery));
+      setDone(await api.approveOrder(CUSTOMER_ID, plan.plan_id, includeTreats, delivery, basket.extras, basket.swaps));
     } catch {
       setError("The order changed or the server is busy. Please review it again.");
     } finally {
@@ -52,7 +54,10 @@ export default function OrderCard({ initialTreats = false }: { initialTreats?: b
     return error ? <p className="order-card bubble error">{error}</p> : <div className="order-card skeleton" aria-label="Preparing the order" />;
   }
 
-  const items = showAll ? plan.items : plan.items.slice(0, SHOWN);
+  // Lines added from Help (swaps, Butler products) are always shown first.
+  const added = plan.items.filter((i) => i.added);
+  const usual = plan.items.filter((i) => !i.added);
+  const items = [...added, ...(showAll ? usual : usual.slice(0, Math.max(0, SHOWN - added.length)))];
   return (
     <section className="order-card card reveal-in" aria-label="Grocery order to approve">
       <div className="order-head">
@@ -68,22 +73,41 @@ export default function OrderCard({ initialTreats = false }: { initialTreats?: b
       </p>
 
       <ul className="order-items">
-        {items.map((i) => (
-          <li key={i.name} className={i.basket === "EVERYDAY" ? "treat" : undefined}>
-            <span className="order-qty mono">
-              {i.qty}
-              {i.unit === "kg" ? " kg" : "×"}
-            </span>
-            <span className="order-name">{i.name}</span>
-            <strong className="mono">{formatEur(i.line_total_eur)}</strong>
-          </li>
-        ))}
+        {items.map((i) =>
+          i.added ? (
+            <li key={i.product_id} className="added">
+              {i.image ? <img className="order-thumb" src={i.image} alt="" loading="lazy" /> : <span className="order-qty mono">{i.qty}×</span>}
+              <span className="order-name">
+                {i.name}
+                <span className="added-tag">
+                  {i.added === "swap" ? `Store-brand swap · instead of ${i.swapped_from}` : "Added from Help"}
+                  {i.url && (
+                    <> · <a href={i.url} target="_blank" rel="noreferrer">price on S-kaupat</a></>
+                  )}
+                </span>
+              </span>
+              <strong className="mono">{formatEur(i.line_total_eur)}</strong>
+              <button className="remove-added" onClick={() => i.product_id && basket.remove(i.product_id)} aria-label={`Remove ${i.name}`}>
+                <IconClose size={16} />
+              </button>
+            </li>
+          ) : (
+            <li key={i.name} className={i.basket === "EVERYDAY" ? "treat" : undefined}>
+              <span className="order-qty mono">
+                {i.qty}
+                {i.unit === "kg" ? " kg" : "×"}
+              </span>
+              <span className="order-name">{i.name}</span>
+              <strong className="mono">{formatEur(i.line_total_eur)}</strong>
+            </li>
+          ),
+        )}
       </ul>
-      {plan.items.length > SHOWN && (
+      {plan.items.length > items.length || showAll ? (
         <button className="link-button" onClick={() => setShowAll((s) => !s)}>
           {showAll ? "Show less" : `Show all ${plan.items.length} items`}
         </button>
-      )}
+      ) : null}
 
       <div className={`treats${includeTreats ? " on" : ""}`}>
         <div>

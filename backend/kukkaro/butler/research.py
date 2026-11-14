@@ -21,7 +21,7 @@ import time
 from datetime import date
 from typing import Any
 
-from kukkaro.butler import exa_client
+from kukkaro.butler import exa_client, products
 from kukkaro.coach import llm
 from kukkaro.coach.prompts import S_GROUP_RULE
 
@@ -107,7 +107,7 @@ def _numbered_sources(results: list[dict], grocery: bool) -> list[dict]:
                 continue
             seen.add(r["url"])
             out.append({"n": len(out) + 1, "title": r["title"], "url": r["url"], "published_date": r.get("published_date"),
-                        "text": " … ".join(r["highlights"])[:TEXT_CHARS_PER_SOURCE]})
+                        "image": r.get("image"), "text": " … ".join(r["highlights"])[:TEXT_CHARS_PER_SOURCE]})
             if len(out) >= MAX_SOURCES:
                 return out
     return out
@@ -153,7 +153,10 @@ def research(question: str, use_cache: bool = True) -> dict[str, Any]:
             continue
         facts.append({"text": text, "sources": cites})
     cited = {n for f in facts for n in f["sources"]}
-    result = {**base, "facts": facts, "sources": [s for s in sources if s["n"] in cited] if facts else sources,
+    # Product cards (grocery only): S-kaupat product pages, picture and price read from the page in code.
+    base["products"] = products.from_sources(sources) if grocery else []
+    result = {**base, "facts": facts, "sources": [s for s in sources if s["n"] in cited or
+                                                   any(p["n"] == s["n"] for p in base["products"])] if facts else sources,
               "model": run.model, "cached": False, "seconds": round(time.monotonic() - t0, 2),
               "error": None if facts else (run.error or "no facts in the sources")}
     if facts:
@@ -165,4 +168,5 @@ def public_view(r: dict[str, Any]) -> dict[str, Any]:
     """What goes back to the trusted zone (Gemma) and the UI: facts and sources, no page text."""
     return {"question_sent": r.get("question"), "kind": r.get("kind"), "facts": r.get("facts") or [],
             "sources": [{k: s.get(k) for k in ("n", "title", "url", "published_date")} for s in r.get("sources") or []],
+            "products": r.get("products") or [],
             "error": r.get("error")}

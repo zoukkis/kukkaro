@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { api, CUSTOMER_ID, type BillSuggestion, type ButlerResponse, type ButlerSource } from "./api";
+import { api, CUSTOMER_ID, type BillSuggestion, type ButlerResponse, type ButlerSource, type Product, type SwapsResponse } from "./api";
+import { useOrderBasket } from "./basket";
 import { formatEur, formatMonth } from "./format";
-import { IconCopy, IconExternal, IconMail, IconSend, IconSpark, IconTrend } from "./Icons";
+import { IconCopy, IconExternal, IconMail, IconReceipt, IconSend, IconSpark, IconTrend } from "./Icons";
 
 // The three demo tasks from backend/kukkaro/butler/AGENTS.md.
 const EXAMPLES = [
@@ -66,6 +67,8 @@ export default function Butler() {
         </p>
       </div>
 
+      <Swaps />
+
       {cards.map((c, i) => (
         <section key={c.category} className="nudge rise" style={stagger(3 + i)}>
           <span className="nudge-icon"><IconTrend /></span>
@@ -129,6 +132,8 @@ export default function Butler() {
         <section className="card exa butler-answer reveal-in" aria-live="polite">
           <p className="butler-task"><span className="q" aria-hidden>search</span>{task}</p>
           <p className="answer">{withCitations(res.answer, res.sources)}</p>
+
+          {res.products && res.products.length > 0 && <ProductCards products={res.products} />}
 
           {res.draft && <Draft draft={res.draft} />}
 
@@ -230,5 +235,93 @@ function Draft({ draft }: { draft: NonNullable<ButlerResponse["draft"]> }) {
       </div>
       <p className="muted small">Nothing is sent automatically. You review it and send it yourself.</p>
     </div>
+  );
+}
+
+// "Same food, smaller bill": branded items from the receipts, with the real S-Group own-brand product.
+function Swaps() {
+  const [data, setData] = useState<SwapsResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+  const basket = useOrderBasket();
+
+  useEffect(() => {
+    api.swaps(CUSTOMER_ID).then(setData).catch(() => setFailed(true));
+  }, []);
+
+  if (failed) return null;
+  if (!data) return <div className="skeleton swap-skeleton" aria-label="Looking for store-brand swaps" />;
+  const shown = data.swaps.filter((s) => s.product && s.product.price_eur != null);
+  if (shown.length === 0) return null;
+
+  return (
+    <section className="swaps card rise" aria-label="Store-brand swaps">
+      <p className="swaps-kicker"><IconReceipt size={15} /> From your receipts</p>
+      <h2 className="swaps-title">Same food, smaller bill</h2>
+      <p className="muted">
+        Switching your usual branded items to S-Group's own brands would have saved{" "}
+        <strong className="num">{formatEur(data.monthly_saving_eur)}</strong> a month
+        (<span className="num">{formatEur(data.yearly_saving_eur)}</span> a year).
+      </p>
+      <ul className="swap-list">
+        {shown.map((s) => {
+          const p = s.product!;
+          const added = basket.has(p.id);
+          return (
+            <li key={s.item} className="swap">
+              {p.image && <img className="product-img" src={p.image} alt="" loading="lazy" />}
+              <div className="swap-body">
+                <span className="swap-instead">Instead of {s.item}</span>
+                <a className="product-name" href={p.url} target="_blank" rel="noreferrer">{p.name}</a>
+                <span className="product-price">
+                  <span className="num">{formatEur(p.price_eur!)}</span> at {p.store}
+                </span>
+                <span className="swap-save">
+                  Save about <strong className="num">{formatEur(s.monthly_saving_eur)}</strong> a month
+                </span>
+                <button className={`button small-button ${added ? "ghost" : "primary"}`}
+                        onClick={() => (added ? basket.remove(p.id) : basket.add("swap", p.id))}>
+                  {added ? "Swapped in your order ✓" : "Swap in my order"}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="source">
+        Savings come from your synthetic receipts ({formatMonth(data.start.slice(0, 7))}–{formatMonth(data.end.slice(0, 7))});
+        prices and pictures are read from the S-kaupat product pages.
+      </p>
+    </section>
+  );
+}
+
+// Product cards in a Butler answer: picture, page price and source. Only priced products can be added.
+function ProductCards({ products }: { products: Product[] }) {
+  const basket = useOrderBasket();
+  return (
+    <>
+      <h3 className="section-title">Products <span className="powered">· S-kaupat</span></h3>
+      <ul className="product-grid">
+        {products.map((p) => {
+          const added = basket.has(p.id);
+          return (
+            <li key={p.id} className="product-card">
+              {p.image ? <img className="product-img" src={p.image} alt="" loading="lazy" /> : <span className="product-img empty" aria-hidden />}
+              <a className="product-name" href={p.url} target="_blank" rel="noreferrer">{p.name}</a>
+              <span className="product-price">
+                {p.price_eur != null ? <span className="num">{formatEur(p.price_eur)}</span> : "Price on the page"}
+                {p.n != null && <a className="cite" href={`#src-${p.n}`} aria-label={`Source ${p.n}`}>{p.n}</a>}
+              </span>
+              {p.price_eur != null && (
+                <button className={`button small-button ${added ? "ghost" : "primary"}`}
+                        onClick={() => (added ? basket.remove(p.id) : basket.add("extra", p.id))}>
+                  {added ? "In your order ✓" : "Add to my order"}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

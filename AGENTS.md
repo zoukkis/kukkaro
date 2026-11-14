@@ -142,7 +142,9 @@ delivery fee, which counts as `EVERYDAY`.
 | `GET /api/customers/{id}/safe-to-spend` | `{amount_eur, until_date, per_day_eur, this_week_eur, status, explanation_inputs}` (`amount_eur` = until next salary; `this_week_eur` answers "What can I safely spend this week?") |
 | `POST /api/customers/{id}/what-if` | body `{category_or_item, change_pct}` → `{monthly_eur, yearly_eur}` |
 | `POST /api/chat` | body `{customer_id, message, history[]}` → `{answer, tool_calls[], figures[], zones[], fallback, trusted_host, research[], sources[], number_check, model, host}` — `zones` is `["trusted"]` or `["trusted","public"]` (the web was searched); `fallback` = the backup model answered; `research[].question_sent` = the sanitised text that left the trusted zone; `sources[{n,title,url}]` |
-| `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[], draft, zones[], fallback, research{question_sent}}` |
+| `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[], draft, zones[], fallback, research{question_sent}}`, products[{id,name,price_eur,image,url,own_brand,n}]}` |
+| `GET /api/customers/{id}/swaps` | `{monthly_saving_eur, yearly_saving_eur, swaps[{item, store_brand_twin, monthly_saving_eur, product}], note}` — savings from synthetic receipts, product price + picture from the S-kaupat page |
+| `GET /api/customers/{id}/grocery-order` | concept: `?include_treats&delivery&extra=<product id>&swap=<product id>` (repeatable); products are priced on the server |
 
 Every response that contains synthetic receipt data must include `"synthetic": true` so the UI can label it.
 
