@@ -1,0 +1,103 @@
+name,category,unit_price_eur,basket,store_brand,typical_qty,twin
+Milk 1 l,dairy,1.15,MANDATORY_REGULAR,false,2,Store brand milk 1 l
+Store brand milk 1 l,dairy,0.95,MANDATORY_REGULAR,true,2,
+Lactose-free milk 1 l,dairy,1.45,MANDATORY_REGULAR,false,2,Store brand lactose-free milk 1 l
+Store brand lactose-free milk 1 l,dairy,1.19,MANDATORY_REGULAR,true,2,
+Oat drink 1 l,dairy,2.29,MANDATORY_REGULAR,false,2,Store brand oat drink 1 l
+Store brand oat drink 1 l,dairy,1.49,MANDATORY_REGULAR,true,2,
+Natural yoghurt 1 kg,dairy,2.19,MANDATORY_REGULAR,false,1,Store brand yoghurt 1 kg
+Store brand yoghurt 1 kg,dairy,1.59,MANDATORY_REGULAR,true,1,
+Butter 500 g,dairy,4.49,MANDATORY_REGULAR,false,1,Store brand butter 500 g
+Store brand butter 500 g,dairy,3.69,MANDATORY_REGULAR,true,1,
+Edam cheese 1 kg,dairy,9.95,MANDATORY_REGULAR,false,1,Store brand cheese 1 kg
+Store brand cheese 1 kg,dairy,7.49,MANDATORY_REGULAR,true,1,
+Quark 250 g,dairy,0.99,MANDATORY_REGULAR,false,2,
+Eggs 10 pcs,eggs,3.29,MANDATORY_REGULAR,false,1,Store brand eggs 10 pcs
+Store brand eggs 10 pcs,eggs,2.59,MANDATORY_REGULAR,true,1,
+Rye bread 500 g,bakery,2.39,MANDATORY_REGULAR,false,1,Store brand rye bread 500 g
+Store brand rye bread 500 g,bakery,1.69,MANDATORY_REGULAR,true,1,
+Toast bread 500 g,bakery,1.99,MANDATORY_REGULAR,false,1,Store brand toast bread 500 g
+Store brand toast bread 500 g,bakery,1.19,MANDATORY_REGULAR,true,1,
+Karelian pies 6 pcs,bakery,2.79,MANDATORY_REGULAR,false,1,
+Oatmeal 1 kg,dry goods,1.89,MANDATORY_REGULAR,false,1,Store brand oatmeal 1 kg
+Store brand oatmeal 1 kg,dry goods,1.09,MANDATORY_REGULAR,true,1,
+Pasta 500 g,dry goods,1.49,MANDATORY_REGULAR,false,2,Store brand pasta 500 g
+Store brand pasta 500 g,dry goods,0.79,MANDATORY_REGULAR,true,2,
+Rice 1 kg,dry goods,2.49,MANDATORY_REGULAR,false,1,Store brand rice 1 kg
+Store brand rice 1 kg,dry goods,1.59,MANDATORY_REGULAR,true,1,
+Flour 2 kg,dry goods,1.79,MANDATORY_REGULAR,false,1,
+Crushed tomatoes 400 g,dry goods,0.99,MANDATORY_REGULAR,false,2,Store brand crushed tomatoes 400 g
+Store brand crushed tomatoes 400 g,dry goods,0.59,MANDATORY_REGULAR,true,2,
+Muesli 500 g,dry goods,3.49,MANDATORY_REGULAR,false,1,Store brand muesli 500 g
+Store brand muesli 500 g,dry goods,2.19,MANDATORY_REGULAR,true,1,
+Ground coffee 500 g,coffee & tea,6.99,MANDATORY_REGULAR,false,1,Store brand ground coffee 500 g
+Store brand ground coffee 500 g,coffee & tea,4.99,MANDATORY_REGULAR,true,1,
+Tea bags 20 pcs,coffee & tea,2.29,MANDATORY_REGULAR,false,1,
+Cooking oil 1 l,dry goods,3.49,MANDATORY_REGULAR,false,1,
+Minced meat 400 g,meat,4.79,MANDATORY_REGULAR,false,1,Store brand minced meat 400 g
+Store brand minced meat 400 g,meat,3.89,MANDATORY_REGULAR,true,1,
+Chicken fillet 450 g,meat,6.49,MANDATORY_REGULAR,false,1,Store brand chicken fillet 450 g
+Store brand chicken fillet 450 g,meat,5.29,MANDATORY_REGULAR,true,1,
+Pork sausage 400 g,meat,3.29,MANDATORY_REGULAR,false,1,
+Cold cuts 300 g,meat,3.99,MANDATORY_REGULAR,false,1,Store brand cold cuts 300 g
+Store brand cold cuts 300 g,meat,2.99,MANDATORY_REGULAR,true,1,
+Salmon fillet 400 g,fish,8.99,MANDATORY_REGULAR,false,1,
+Tofu 250 g,vegetarian,2.49,MANDATORY_REGULAR,false,1,
+Oat mince 250 g,vegetarian,3.19,MANDATORY_REGULAR,false,1,
+Potatoes 2 kg,produce,2.29,MANDATORY_REGULAR,false,1,
+Carrots 1 kg,produce,1.29,MANDATORY_REGULAR,false,1,
+Onions 1 kg,produce,1.39,MANDATORY_REGULAR,false,1,
+Cucumber,produce,1.49,MANDATORY_REGULAR,false,1,
+Tomatoes 500 g,produce,2.49,MANDATORY_REGULAR,false,1,
+Bananas 1 kg,produce,1.69,MANDATORY_REGULAR,false,1,
+Apples 1 kg,produce,2.49,MANDATORY_REGULAR,false,1,
+Salad mix 150 g,produce,2.29,MANDATORY_REGULAR,false,1,
+Frozen vegetables 500 g,frozen,2.19,MANDATORY_REGULAR,false,1,Store brand frozen vegetables 500 g
+Store brand frozen vegetables 500 g,frozen,1.39,MANDATORY_REGULAR,true,1,
+Frozen berries 500 g,frozen,3.49,MANDATORY_REGULAR,false,1,
+Fish fingers 300 g,frozen,3.29,MANDATORY_REGULAR,false,1,
+Baby food jar,baby,1.49,MANDATORY_REGULAR,false,3,
+Diapers 40 pcs,baby,12.90,MANDATORY_REGULAR,false,1,
+Toilet paper 8 rolls,household,4.99,MANDATORY_REGULAR,false,1,Store brand toilet paper 8 rolls
+Store brand toilet paper 8 rolls,household,3.49,MANDATORY_REGULAR,true,1,
+Dish soap 500 ml,household,2.49,MANDATORY_REGULAR,false,1,Store brand dish soap 500 ml
+Store brand dish soap 500 ml,household,1.29,MANDATORY_REGULAR,true,1,
+Laundry detergent 1 l,household,7.99,MANDATORY_REGULAR,false,1,Store brand laundry detergent 1 l
+Store brand laundry detergent 1 l,household,4.99,MANDATORY_REGULAR,true,1,
+Toothpaste,personal care,2.99,MANDATORY_REGULAR,false,1,
+Shampoo 250 ml,personal care,3.99,MANDATORY_REGULAR,false,1,
+Painkillers 30 tabs,pharmacy shelf,4.90,MANDATORY_IRREGULAR,false,1,
+Plasters,pharmacy shelf,3.49,MANDATORY_IRREGULAR,false,1,
+Batteries AA 4 pcs,household,5.99,MANDATORY_IRREGULAR,false,1,
+LED light bulb,household,4.49,MANDATORY_IRREGULAR,false,1,
+Energy drink 0.5 l,drinks,2.29,EVERYDAY,false,2,
+Soft drink 1.5 l,drinks,2.69,EVERYDAY,false,1,
+Soft drink can 0.33 l,drinks,1.39,EVERYDAY,false,2,
+Coffee to go,coffee & tea,2.90,EVERYDAY,false,1,
+Iced coffee 250 ml,drinks,2.49,EVERYDAY,false,1,
+Candy bag 300 g,sweets,3.29,EVERYDAY,false,1,
+Pick-and-mix candy 200 g,sweets,2.40,EVERYDAY,false,1,
+Chocolate bar,sweets,1.49,EVERYDAY,false,2,
+Chocolate 200 g,sweets,3.69,EVERYDAY,false,1,
+Licorice 200 g,sweets,2.79,EVERYDAY,false,1,
+Ice cream tub 1 l,sweets,4.49,EVERYDAY,false,1,
+Ice cream cone,sweets,2.19,EVERYDAY,false,1,
+Cinnamon bun,pastries,1.99,EVERYDAY,false,1,
+Doughnut,pastries,1.49,EVERYDAY,false,2,
+Croissant,pastries,1.29,EVERYDAY,false,2,
+Pastry box 4 pcs,pastries,4.99,EVERYDAY,false,1,
+Potato chips 275 g,snacks,3.49,EVERYDAY,false,1,
+Cheese puffs 150 g,snacks,2.29,EVERYDAY,false,1,
+Salted nuts 200 g,snacks,3.29,EVERYDAY,false,1,
+Ready meal,ready food,4.99,EVERYDAY,false,1,
+Sushi box,ready food,8.90,EVERYDAY,false,1,
+Frozen pizza,ready food,3.99,EVERYDAY,false,1,
+Sandwich to go,ready food,4.29,EVERYDAY,false,1,
+Hot food counter meal,ready food,7.90,EVERYDAY,false,1,
+Protein bar,snacks,2.49,EVERYDAY,false,2,
+Smoothie 250 ml,drinks,2.99,EVERYDAY,false,1,
+Cider 0.33 l,alcohol,2.79,EVERYDAY,false,4,
+Beer 0.33 l,alcohol,1.99,EVERYDAY,false,6,
+Magazine,impulse,6.90,EVERYDAY,false,1,
+Cut flowers,impulse,8.90,EVERYDAY,false,1,
+Chewing gum,impulse,1.99,EVERYDAY,false,1,
