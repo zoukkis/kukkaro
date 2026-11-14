@@ -217,6 +217,30 @@ export interface SafeToSpend {
   explanation_inputs: Record<string, unknown>;
 }
 
+// GET /customers/{id}/upcoming: bills still expected before payday. An estimate from the last
+// 3 months (the demo data has no e-invoices); every number comes from DATA.
+export interface UpcomingItem {
+  name: string; // dataset category, e.g. "Housing", "Utilities"
+  expected_eur: number;
+  typical_monthly_eur: number;
+  expected_around: string | null; // YYYY-MM-DD, only when between today and payday
+  last_payment_date: string | null;
+  change_pct: number | null;
+  rising: boolean;
+}
+export interface Upcoming {
+  today: string;
+  until_date: string;
+  items: UpcomingItem[];
+  other_essentials_eur: number;
+  other_essentials: string[];
+  total_expected_eur: number;
+  left_after_eur: number;
+  this_week_eur: number;
+  estimated: boolean;
+  source: string;
+}
+
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
@@ -294,6 +318,8 @@ const real = {
     http<ButlerResponse>(`/butler`, { method: "POST", body: JSON.stringify({ customer_id, task }) }),
   safeToSpend: (id: string) =>
     http<SafeToSpend>(`/customers/${encodeURIComponent(id)}/safe-to-spend`),
+  upcoming: (id: string) =>
+    http<Upcoming>(`/customers/${encodeURIComponent(id)}/upcoming`),
   suggestions: (id: string) =>
     http<{ suggestions: BillSuggestion[] }>(`/customers/${encodeURIComponent(id)}/butler/suggestions`),
   groceryPlan: (id: string, includeTreats: boolean, delivery: DeliveryOption, extras: string[] = [], swaps: string[] = []) => {
@@ -525,6 +551,25 @@ const mock: typeof real = {
     return { items: all.slice(offset, offset + limit), total: all.length, limit, offset };
   },
   safeToSpend: async () => (await wait(200), mockSafe),
+  // Illustrative split of the logged €485.25 still expected (utility bills as in DECISIONS.md).
+  upcoming: async () => (
+    await wait(200),
+    {
+      today: "2026-09-30",
+      until_date: "2026-10-15",
+      items: [
+        { name: "Housing", expected_eur: 290.0, typical_monthly_eur: 290.0, expected_around: "2026-10-02", last_payment_date: "2026-09-02", change_pct: 0.4, rising: false },
+        { name: "Utilities", expected_eur: 65.7, typical_monthly_eur: 65.7, expected_around: "2026-10-05", last_payment_date: "2026-09-05", change_pct: 120.3, rising: true },
+      ],
+      other_essentials_eur: 129.55,
+      other_essentials: ["Groceries"],
+      total_expected_eur: 485.25,
+      left_after_eur: 272.27,
+      this_week_eur: 127.05,
+      estimated: true,
+      source: "Estimated from your last 3 months (no e-invoices in the demo data).",
+    }
+  ),
   swaps: async () => (
     await wait(300),
     { start: "2026-07-01", end: "2026-09-30", months: 3, monthly_saving_eur: 0, yearly_saving_eur: 0, swaps: [], note: "Mock data." }

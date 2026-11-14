@@ -9,6 +9,9 @@ const svg = (size: number, children: ReactNode) => (
   </svg>
 );
 
+export const IconBell = ({ size = 22 }: P) =>
+  svg(size, <><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15Z" /><path d="M10 20.5a2.2 2.2 0 0 0 4 0" /></>);
+
 export const IconAsk = ({ size = 22 }: P) =>
   svg(size, <><path d="M5 18.5V7a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9l-4 2.5Z" /><path d="M9 9.5h6M9 12.5h3.5" /></>);
 

@@ -43,7 +43,7 @@ function Shell() {
         {/* All screens stay mounted so chat history and Butler answers survive tab switches */}
         <main id="main" className="content">
           <section className="screen" hidden={tab !== "home"} aria-label="Home">
-            <Home onOpenBaskets={() => setTab("baskets")} />
+            <Home onOpenBaskets={() => setTab("baskets")} onOpenHelp={() => setTab("help")} />
           </section>
           <section className="screen" hidden={tab !== "baskets"} aria-label="Baskets">
             <Baskets />
