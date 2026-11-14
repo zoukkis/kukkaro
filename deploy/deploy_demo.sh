@@ -28,6 +28,6 @@ echo "DATA_DIR=../data" >> "$TMP/kukkaro.env"
 echo "   $(cut -d= -f1 "$TMP/kukkaro.env" | tr '\n' ' ')"
 
 echo "== upload and set up"
-tr -d '' < "$ROOT/deploy/remote_setup.sh" > "$TMP/remote_setup.sh"   # Windows checkouts may add CR
+tr -d '\r' < "$ROOT/deploy/remote_setup.sh" > "$TMP/remote_setup.sh"   # Windows checkouts may add CR
 scp "${SSH_OPTS[@]}" -q "$TMP/web-dist.tgz" "$TMP/kukkaro.env" "$TMP/remote_setup.sh" "root@$HOST:/root/"
 ssh "${SSH_OPTS[@]}" "root@$HOST" "bash /root/remote_setup.sh $HOST"
