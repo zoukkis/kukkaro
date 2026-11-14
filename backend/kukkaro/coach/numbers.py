@@ -50,11 +50,15 @@ def allowed_numbers(tool_calls: list[dict], extra_text: str = "") -> set[Decimal
     return {d.normalize() for d in allowed}
 
 
+_LIST_MARKER = re.compile(r"(?:^|(?<=\n)|(?<=[.:;!?]\s))\s*\d{1,2}[.)](?=\s)")
+
+
 def unverified_numbers(answer: str, tool_calls: list[dict], extra_text: str = "") -> list[str]:
-    """Numbers in the answer that no tool produced (should be empty)."""
+    """Numbers in the answer that no tool produced (should be empty). Numbered-list markers ("1. ",
+    "5) ") at the start of a line or after a sentence are not figures and are skipped."""
     allowed = allowed_numbers(tool_calls, extra_text)
     bad = []
-    for d in numbers_in_text(answer):
+    for d in numbers_in_text(_LIST_MARKER.sub(" ", answer or "")):
         if d.normalize() not in allowed:
             bad.append(format(d.normalize(), "f"))
     return sorted(set(bad), key=lambda x: Decimal(x))
