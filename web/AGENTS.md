@@ -20,6 +20,11 @@ first; the desktop view can just center the phone-width layout.
 2. **Baskets overview**: this month's spending in the three baskets, labelled exactly 🏠 Regular
    essentials · 🔧 Unexpected necessities · ☕ Everyday spending (one clear chart, big numbers,
    plain labels), a "safe to spend this week" card, tap a basket to see its transactions.
+3a. **"With receipts / Without receipts" toggle** on the Baskets screen (same month, same
+   customer): without = groceries as one essentials line; with = split into essentials vs everyday
+   spending with the top leak items. This is the single most important demo moment (see
+   `docs/WHY_RECEIPTS.md`). Needs `?receipts=true|false` on the summary endpoint; request it from
+   COACH/DATA via DECISIONS.md.
 3. **Receipt view**: tap a grocery transaction → items coloured by basket, leak items highlighted,
    a visible **"Synthetic example receipt"** badge. This screen sells the receipts idea; make it beautiful.
 4. **What-if**: pick a category or item plus a slider (−100% … +50%) → monthly and yearly euros.

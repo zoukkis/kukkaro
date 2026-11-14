@@ -21,7 +21,10 @@ always with sources.
 this week? · How could I save more?** Show the baskets with S-Bank's own labels: 🏠 **Regular
 essentials** (`MANDATORY_REGULAR`), 🔧 **Unexpected necessities** (`MANDATORY_IRREGULAR`),
 ☕ **Everyday spending** (`EVERYDAY`). Users must be able to explore freely (not just fixed charts),
-enriched with open data and benchmarks. The S-Bank presenter liked the receipt idea (14 Nov).
+enriched with open data and benchmarks. The S-Bank presenter liked the receipt idea (14 Nov), **but
+S-Bank has not yet found a good enough reason to combine S-Group purchase data with bank data.
+Our job is to prove that reason.** Read `docs/WHY_RECEIPTS.md`: every receipt feature must serve
+one of its reasons, and the demo's key moment is the "With receipts / Without receipts" toggle.
 
 ## 2. Where we compete (each needs visible proof in the demo)
 

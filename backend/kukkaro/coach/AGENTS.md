@@ -11,7 +11,9 @@ exact numbers from DATA and RECEIPTS, and the LLM explains them kindly and brief
 1. **`api/main.py`**: FastAPI app with `/api` prefix, CORS for the Vite dev server, `/api/health`.
    Mount every endpoint in root AGENTS.md §5.4:
    - `api/routes_data.py` (you write it): summary, transactions, safe-to-spend, what-if. Thin
-     wrappers around `kukkaro.data.metrics`, no logic of their own.
+     wrappers around `kukkaro.data.metrics`, no logic of their own. The summary endpoint takes
+     `?receipts=true|false`: with `true`, grocery spend is split by receipt items into baskets
+     (via the RECEIPTS helpers). This powers the With/Without receipts toggle (`docs/WHY_RECEIPTS.md`).
    - `kukkaro.receipts.router` (written by RECEIPTS): the receipt endpoint.
    - `kukkaro.coach.router` (yours): `/api/chat`.
    - `kukkaro.butler.router` (written by BUTLER): `/api/butler`.

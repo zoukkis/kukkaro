@@ -8,6 +8,10 @@ line items. We generate **synthetic** receipts that look like that archive, so t
 one grocery payment into essentials vs. leaks. In production the generator would be swapped for the
 real receipt archive. That swap is the point of the provider interface.
 
+**Read `docs/WHY_RECEIPTS.md` first.** S-Bank has not found a good enough reason to combine shop
+and bank data; our features must prove one. Add `basket_split(customer_id, start, end)` (grocery
+spend split into baskets by item) for the With/Without receipts toggle.
+
 ## Deliverables (in order)
 1. **`models.py`**: Pydantic models exactly matching the Receipt JSON in root AGENTS.md §5.3.
 2. **`provider.py`**:

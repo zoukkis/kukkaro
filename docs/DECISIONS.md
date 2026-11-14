@@ -10,6 +10,8 @@ summary we post to their Discord is built from this file. Append, never rewrite.
 
 - 2026-11-14 11:40 · Konsta · S-Bank presenter liked the synthetic receipt idea; brief slides add 4 must-answer questions and basket labels (now in AGENTS.md) · direct sponsor feedback
 
+- 2026-11-14 11:50 · Konsta · S-Bank: no good-enough reason found yet to combine S-Group and bank data → our pitch must prove it; added docs/WHY_RECEIPTS.md and the With/Without receipts toggle as the key demo moment · sponsor's open problem = our differentiator
+
 ## Requests between workstreams
 (Format: `from → to · what is needed · status`)
 
