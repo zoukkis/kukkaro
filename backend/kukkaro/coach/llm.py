@@ -267,6 +267,13 @@ def _complete_json_openai(cfg: dict, system: str, prompt: str, schema: dict) -> 
         result.round_seconds.append(round(time.monotonic() - t, 2))
         result.text = resp.choices[0].message.content or ""
         parsed = _parse_json(result.text)
+        # vLLM's JSON mode guarantees JSON, not the schema: a reply without the required keys counts as a
+        # failure, so the caller's fallback model answers instead of the caller crashing on a missing key.
+        if not isinstance(parsed, dict):
+            raise ValueError("reply is not a JSON object")
+        missing = [k for k in schema.get("required", []) if k not in parsed]
+        if missing:
+            raise ValueError(f"reply is missing {', '.join(missing)}")
     except Exception as e:
         key = os.environ.get("GEMMA_API_KEY") or ""
         result.error = f"{cfg['model']}: {type(e).__name__}: {str(e).replace(key, '<key>') if key else e}"[:300]
