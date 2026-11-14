@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   api,
   CUSTOMER_ID,
@@ -10,6 +10,9 @@ import {
   type TransactionPage,
 } from "./api";
 import { BASKET_INFO, formatDate, formatEur, formatMonth, formatTime } from "./format";
+import { IconArrow, IconBack, IconReceipt } from "./Icons";
+
+const stagger = (i: number) => ({ "--i": i }) as CSSProperties;
 
 export default function Baskets() {
   const [withReceipts, setWithReceipts] = useState(false);
@@ -30,36 +33,48 @@ export default function Baskets() {
   }, []);
 
   const summary = withReceipts ? summaries.receipts : summaries.card;
-  if (error) return <p className="status">Couldn't load your baskets. Is the backend running?</p>;
-  if (!summaries.card || !safe) return <p className="status">Loading…</p>;
+  if (error) return <p className="status">Couldn't load your baskets. Please try again in a moment.</p>;
+  if (!summaries.card || !safe) return <BasketsSkeleton />;
   if (open) return <BasketTransactions basket={open} month={summaries.card.month} onBack={() => setOpen(null)} />;
 
   const split = summary?.receipts;
   const groceries = summaries.card.top_categories.find((c) => c.category === "Groceries");
+  const hiddenEveryday = split?.split.find((p) => p.basket === "EVERYDAY")?.total_eur;
 
   return (
-    <div className="baskets">
-      <section className="safe-card">
-        <span className="safe-label">Safe to spend this week</span>
-        <span className="safe-amount">{formatEur(safe.this_week_eur)}</span>
-        <span className="safe-note">
-          {formatEur(safe.amount_eur)} until payday {formatDate(safe.until_date)} · {formatEur(safe.per_day_eur)}/day
-        </span>
-        <span className="safe-note">After the regular essentials still expected before payday</span>
+    <div className="page">
+      <section className="hero-card rise" style={stagger(0)}>
+        <span className="eyebrow light">Safe to spend this week</span>
+        <span className="hero-amount">{formatEur(safe.this_week_eur)}</span>
+        <div className="hero-facts">
+          <span>
+            <strong>{formatEur(safe.per_day_eur)}</strong> a day
+          </span>
+          <span>
+            <strong>{formatEur(safe.amount_eur)}</strong> until payday {formatDate(safe.until_date)}
+          </span>
+        </div>
+        <span className="hero-note">After the regular essentials still due before payday.</span>
       </section>
 
-      <section className="card">
+      <section className="card rise" style={stagger(1)}>
         <div className="card-head">
-          <h2>{formatMonth(summaries.card.month)}</h2>
-          <span className="muted">Spent {formatEur(summaries.card.spending_eur)}</span>
+          <div>
+            <p className="eyebrow">Your three baskets</p>
+            <h2 className="card-title">{formatMonth(summaries.card.month)}</h2>
+          </div>
+          <div className="spent">
+            <span className="muted">Spent</span>
+            <strong className="num">{formatEur(summaries.card.spending_eur)}</strong>
+          </div>
         </div>
 
         <div className="segmented" role="group" aria-label="Receipt view">
           <button aria-pressed={!withReceipts} onClick={() => setWithReceipts(false)}>
-            Without receipts
+            Card data
           </button>
           <button aria-pressed={withReceipts} onClick={() => setWithReceipts(true)} disabled={!summaries.receipts}>
-            🧾 With receipts
+            <IconReceipt size={16} /> With receipts
           </button>
         </div>
 
@@ -69,7 +84,7 @@ export default function Baskets() {
           <>
             <div className="stackbar" role="img" aria-label="Share of spending per basket">
               {summary.baskets.map((b) => (
-                <span key={b.basket} className={`seg ${b.basket}`} style={{ width: `${b.share_pct}%` }} />
+                <span key={b.basket} className={`seg ${b.basket}`} style={{ flexGrow: b.share_pct }} />
               ))}
             </div>
             <ul className="basket-list">
@@ -78,18 +93,16 @@ export default function Baskets() {
                 return (
                   <li key={b.basket}>
                     <button className="basket-row" onClick={() => setOpen(b.basket)}>
-                      <span className={`dot ${b.basket}`} aria-hidden />
+                      <span className={`swatch ${b.basket}`} aria-hidden>{info.emoji}</span>
                       <span className="basket-name">
-                        <strong>
-                          {info.emoji} {info.label}
-                        </strong>
+                        <strong>{info.label}</strong>
                         <span className="muted">{info.hint}</span>
                       </span>
                       <span className="basket-amount">
-                        <strong>{formatEur(b.total_eur)}</strong>
-                        <span className="muted">{b.share_pct}%</span>
+                        <strong className="num">{formatEur(b.total_eur)}</strong>
+                        <span className="muted num">{b.share_pct}%</span>
                       </span>
-                      <span className="chev" aria-hidden>›</span>
+                      <span className="chev" aria-hidden><IconArrow size={16} /></span>
                     </button>
                   </li>
                 );
@@ -97,31 +110,34 @@ export default function Baskets() {
             </ul>
 
             {withReceipts && split ? (
-              <div className="receipt-insight">
+              <div className="receipt-paper reveal-in">
                 <span className="badge">Synthetic example data</span>
-                <p>
-                  Your {formatEur(split.grocery_total_eur)} of grocery payments, split by what was on the receipts:
-                </p>
+                {hiddenEveryday != null && (
+                  <p className="reveal">
+                    <span className="reveal-amount">{formatEur(hiddenEveryday)}</span> of everyday spending was hiding
+                    inside your {formatEur(split.grocery_total_eur)} of grocery payments.
+                  </p>
+                )}
                 <ul className="split-list">
                   {split.split.map((p) => (
                     <li key={p.basket}>
                       <span>
-                        <span className={`dot ${p.basket}`} aria-hidden /> {BASKET_INFO[p.basket].emoji} {p.label}
+                        <span className={`dot ${p.basket}`} aria-hidden /> {p.label}
                       </span>
-                      <strong>{formatEur(p.total_eur)}</strong>
+                      <strong className="num">{formatEur(p.total_eur)}</strong>
                     </li>
                   ))}
                 </ul>
                 {split.top_leak_items.length > 0 && (
                   <>
-                    <h3>Top everyday items in your grocery trips</h3>
+                    <h3 className="paper-title">What slipped through</h3>
                     <ul className="leak-list">
                       {split.top_leak_items.map((it) => (
                         <li key={it.name}>
                           <span>
-                            {it.name} <span className="muted">×{it.qty}</span>
+                            {it.name} <span className="qty">×{it.qty}</span>
                           </span>
-                          <strong>{formatEur(it.total_eur)}</strong>
+                          <strong className="num">{formatEur(it.total_eur)}</strong>
                         </li>
                       ))}
                     </ul>
@@ -131,8 +147,8 @@ export default function Baskets() {
             ) : (
               groceries && (
                 <p className="receipt-hint">
-                  Card data counts all {formatEur(groceries.total_eur)} of groceries as 🏠 Regular essentials. Switch on{" "}
-                  <strong>With receipts</strong> to see what was really in the basket.
+                  Card data counts all <strong>{formatEur(groceries.total_eur)}</strong> of groceries as regular
+                  essentials. Switch to <strong>With receipts</strong> to see what was really in the basket.
                 </p>
               )
             )}
@@ -144,27 +160,40 @@ export default function Baskets() {
         )}
       </section>
 
-      <section className="card">
-        <h2>Top categories</h2>
+      <section className="card rise" style={stagger(2)}>
+        <p className="eyebrow">Where it went</p>
+        <h2 className="card-title">Top categories</h2>
         <ul className="cat-list">
           {summaries.card.top_categories.map((c) => (
             <li key={c.category}>
               <span>
-                {BASKET_INFO[c.basket].emoji} {c.category}
+                <span className={`dot ${c.basket}`} aria-hidden /> {c.category}
               </span>
-              <strong>{formatEur(c.total_eur)}</strong>
+              <strong className="num">{formatEur(c.total_eur)}</strong>
             </li>
           ))}
         </ul>
-        <div className="income-row">
-          <span>Income</span>
-          <strong>{formatEur(summaries.card.income_eur)}</strong>
-        </div>
-        <div className="income-row">
-          <span>Balance now</span>
-          <strong>{formatEur(summaries.card.balance_eur)}</strong>
+        <div className="totals">
+          <div>
+            <span className="muted">Income</span>
+            <strong className="num">{formatEur(summaries.card.income_eur)}</strong>
+          </div>
+          <div>
+            <span className="muted">Balance now</span>
+            <strong className="num">{formatEur(summaries.card.balance_eur)}</strong>
+          </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function BasketsSkeleton() {
+  return (
+    <div className="page" aria-busy="true" aria-label="Loading your baskets">
+      <div className="skeleton hero" />
+      <div className="skeleton tall" />
+      <div className="skeleton" />
     </div>
   );
 }
@@ -193,16 +222,21 @@ function BasketTransactions({
   if (receiptTx) return <ReceiptView tx={receiptTx} onBack={() => setReceiptTx(null)} backLabel={info.label} />;
 
   return (
-    <div className="baskets">
+    <div className="page">
       <button className="back" onClick={onBack}>
-        ‹ Baskets
+        <IconBack /> Baskets
       </button>
-      <h1 className="basket-title">
-        {info.emoji} {info.label}
-      </h1>
-      <p className="muted">{formatMonth(month)} · {info.hint}</p>
+      <div className="page-head">
+        <span className={`swatch big ${basket}`} aria-hidden>{info.emoji}</span>
+        <div>
+          <h1 className="page-title">{info.label}</h1>
+          <p className="muted">
+            {formatMonth(month)} · {info.hint}
+          </p>
+        </div>
+      </div>
       {error && <p className="status">Couldn't load transactions.</p>}
-      {!page && !error && <p className="status">Loading…</p>}
+      {!page && !error && <div className="skeleton tall" />}
       {page && (
         <ul className="tx-list card">
           {page.items.length === 0 && <li className="muted">No transactions in this basket.</li>}
@@ -213,10 +247,14 @@ function BasketTransactions({
                   <strong>{t.subcategory ?? t.category}</strong>
                   <span className="muted">
                     {formatDate(t.tx_date)}
-                    {t.category === "Groceries" && " · 🧾 receipt"}
+                    {t.category === "Groceries" && (
+                      <span className="has-receipt">
+                        <IconReceipt size={14} /> receipt
+                      </span>
+                    )}
                   </span>
                 </span>
-                <strong className={t.tx_amount_eur < 0 ? "out" : "in"}>{formatEur(t.tx_amount_eur)}</strong>
+                <strong className={`num ${t.tx_amount_eur < 0 ? "out" : "in"}`}>{formatEur(t.tx_amount_eur)}</strong>
               </>
             );
             return (
@@ -224,10 +262,10 @@ function BasketTransactions({
                 {t.category === "Groceries" ? (
                   <button className="tx-button" onClick={() => setReceiptTx(t)}>
                     {body}
-                    <span className="chev" aria-hidden>›</span>
+                    <span className="chev" aria-hidden><IconArrow size={16} /></span>
                   </button>
                 ) : (
-                  body
+                  <div className="tx-row">{body}</div>
                 )}
               </li>
             );
@@ -247,19 +285,19 @@ function ReceiptView({ tx, onBack, backLabel }: { tx: Transaction; onBack: () =>
   }, [tx.tx_id]);
 
   return (
-    <div className="baskets">
+    <div className="page">
       <button className="back" onClick={onBack}>
-        ‹ {backLabel}
+        <IconBack /> {backLabel}
       </button>
       {error && <p className="status">Couldn't load the receipt.</p>}
-      {receipt === undefined && !error && <p className="status">Loading…</p>}
+      {receipt === undefined && !error && <div className="skeleton tall" />}
       {receipt === null && <p className="status">No receipt for this payment.</p>}
       {receipt && (
-        <section className="receipt">
+        <section className="receipt reveal-in">
           <span className="badge">Synthetic example receipt</span>
           <h1 className="receipt-store">{receipt.store}</h1>
-          <p className="muted">
-            {formatDate(receipt.timestamp)} {formatTime(receipt.timestamp)}
+          <p className="receipt-when">
+            {formatDate(receipt.timestamp)} · {formatTime(receipt.timestamp)}
             {receipt.channel === "online_order" && " · online order"}
           </p>
           <ul className="receipt-items">
@@ -267,28 +305,32 @@ function ReceiptView({ tx, onBack, backLabel }: { tx: Transaction; onBack: () =>
               <li key={i} className={it.basket === "EVERYDAY" ? "leak" : ""}>
                 <span className={`dot ${it.basket}`} aria-hidden />
                 <span className="item-name">
-                  {it.name}
-                  {it.store_brand && <span className="tag">store brand</span>}
-                  <span className="muted">
-                    {it.qty} × {formatEur(it.unit_price_eur)} · {BASKET_INFO[it.basket].emoji} {BASKET_INFO[it.basket].label}
+                  <span>
+                    {it.name}
+                    {it.store_brand && <span className="tag">store brand</span>}
+                  </span>
+                  <span className="item-sub">
+                    {it.qty} × {formatEur(it.unit_price_eur)} · {BASKET_INFO[it.basket].label}
                   </span>
                 </span>
-                <strong>{formatEur(it.line_total_eur)}</strong>
+                <strong className="num">{formatEur(it.line_total_eur)}</strong>
               </li>
             ))}
             {!!receipt.delivery_fee_eur && (
               <li>
                 <span className="dot" aria-hidden />
                 <span className="item-name">Delivery fee</span>
-                <strong>{formatEur(receipt.delivery_fee_eur)}</strong>
+                <strong className="num">{formatEur(receipt.delivery_fee_eur)}</strong>
               </li>
             )}
           </ul>
           <div className="receipt-total">
             <span>Total</span>
-            <strong>{formatEur(receipt.total_eur)}</strong>
+            <strong className="num">{formatEur(receipt.total_eur)}</strong>
           </div>
-          <p className="source">Matches your card payment of {formatEur(-tx.tx_amount_eur)}. Highlighted lines are ☕ Everyday spending.</p>
+          <p className="source">
+            Matches your card payment of {formatEur(-tx.tx_amount_eur)}. Highlighted lines are everyday spending.
+          </p>
         </section>
       )}
     </div>
