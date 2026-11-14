@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -62,7 +63,10 @@ def provider_config(provider: str | None = None) -> dict[str, str]:
     if p == "gemini":
         return {"provider": p, "model": os.environ.get("GEMINI_MODEL") or "gemini-4-hydrogen", "host": "google"}
     if os.environ.get("GEMMA_BASE_URL"):
-        return {"provider": p, "model": os.environ.get("GEMMA_MODEL") or "gemma-4-26b-a4b-it", "host": "verda"}
+        # Stage 2: an OpenAI-compatible server (vLLM on Verda). GEMMA_HOST only exists so a test against
+        # another OpenAI-compatible endpoint is not labelled "verda".
+        return {"provider": p, "model": os.environ.get("GEMMA_MODEL") or "gemma-4-26b-a4b-it",
+                "host": os.environ.get("GEMMA_HOST") or "verda"}
     return {"provider": p, "model": os.environ.get("GEMMA_MODEL") or "gemma-4-26b-a4b-it", "host": "google"}
 
 
@@ -126,12 +130,75 @@ def _run_google(cfg: dict, system: str, history: list[dict], message: str, tools
     raise RuntimeError("too many tool rounds")
 
 
+_THINK = re.compile(r"<(thought|think|thinking)>.*?</\1>", re.DOTALL | re.IGNORECASE)
+
+
+def strip_thinking(text: str) -> str:
+    """Some OpenAI-compatible servers return the model's reasoning inline (<thought>…</thought>).
+    The user must only see the answer; an unclosed block at the start is dropped too."""
+    text = _THINK.sub("", text)
+    m = re.match(r"\s*<(thought|think|thinking)>", text, re.IGNORECASE)
+    if m:
+        text = ""  # reasoning that never closed: there is no answer in it
+    return text.strip()
+
+
+def _run_openai(cfg: dict, system: str, history: list[dict], message: str, tools: list[ToolSpec],
+                execute: Callable[[str, dict], dict], deadline: float, result: RunResult) -> None:
+    """Stage 2: Gemma on vLLM (Verda) through the OpenAI chat-completions API with native tool calls."""
+    from openai import OpenAI
+
+    if "openai" not in _clients:
+        _clients["openai"] = OpenAI(base_url=os.environ["GEMMA_BASE_URL"], api_key=os.environ.get("GEMMA_API_KEY") or "none",
+                                    timeout=TIMEOUTS["gemma"][0], max_retries=0)
+    client = _clients["openai"]
+    msgs: list[dict] = [{"role": "system", "content": system}]
+    msgs += [{"role": "user" if h["role"] == "user" else "assistant", "content": h["content"]} for h in history if h.get("content")]
+    msgs.append({"role": "user", "content": message})
+    oa_tools = [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+                for t in tools]
+    nudged = False
+    for _ in range(MAX_TOOL_ROUNDS + 2):
+        if time.monotonic() > deadline:
+            raise TimeoutError("coach took too long")
+        t = time.monotonic()
+        # A cap on reply length stops runaway reasoning early (then the nudge below asks for the answer).
+        resp = client.chat.completions.create(model=cfg["model"], messages=msgs, tools=oa_tools or None,
+                                              tool_choice="auto" if oa_tools else None, temperature=0.2,
+                                              max_tokens=int(os.environ.get("GEMMA_MAX_TOKENS") or 1500))
+        result.round_seconds.append(round(time.monotonic() - t, 2))
+        msg = resp.choices[0].message
+        if not msg.tool_calls:
+            result.text = strip_thinking(msg.content or "")
+            if result.text or nudged:
+                return
+            # Gemma 4 sometimes spends the whole reply on reasoning. Ask once for just the answer.
+            nudged = True
+            msgs.append({"role": "user", "content": "Reply now with only the final answer for me, under 120 words, "
+                                                    "using only the numbers from the tool results. No reasoning."})
+            continue
+        msgs.append({"role": "assistant", "content": msg.content or "",
+                     "tool_calls": [{"id": tc.id, "type": "function",
+                                     "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
+                                    for tc in msg.tool_calls]})
+        for tc in msg.tool_calls:
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            out = _safe_execute(execute, tc.function.name, args)
+            result.tool_calls.append({"name": tc.function.name, "args": args, "result": out})
+            msgs.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(out, ensure_ascii=False, default=str)})
+    raise RuntimeError("too many tool rounds")
+
+
 def run(system: str, history: list[dict], message: str, tools: list[ToolSpec],
         execute: Callable[[str, dict], dict], provider: str | None = None) -> RunResult:
     cfg = provider_config(provider)
     t0 = time.monotonic()
     deadline = t0 + TIMEOUTS[cfg["provider"]][1]
-    models = [cfg["model"]] + ([FALLBACK_MODELS[cfg["provider"]]] if FALLBACK_MODELS.get(cfg["provider"]) and cfg["host"] == "google" else [])
+    openai_compatible = bool(os.environ.get("GEMMA_BASE_URL")) and cfg["provider"] == "gemma"
+    models = [cfg["model"]] + ([FALLBACK_MODELS[cfg["provider"]]] if FALLBACK_MODELS.get(cfg["provider"]) and not openai_compatible else [])
     errors: list[str] = []
     result = RunResult(text="", model=cfg["model"], host=cfg["host"], provider=cfg["provider"])
     for i, model in enumerate(models):
@@ -139,9 +206,8 @@ def run(system: str, history: list[dict], message: str, tools: list[ToolSpec],
             break
         result = RunResult(text="", model=model, host=cfg["host"], provider=cfg["provider"])
         try:
-            if cfg["host"] == "verda":
-                raise NotImplementedError("Gemma on Verda (stage 2) is not wired yet")
-            _run_google({**cfg, "model": model}, system, history, message, tools, execute, deadline, result)
+            backend = _run_openai if openai_compatible else _run_google
+            backend({**cfg, "model": model}, system, history, message, tools, execute, deadline, result)
             if not result.text:
                 raise RuntimeError("empty answer")
             break

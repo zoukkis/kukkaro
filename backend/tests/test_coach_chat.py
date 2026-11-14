@@ -124,3 +124,87 @@ def test_chat_route(client, monkeypatch):
 def test_chat_route_errors(client, monkeypatch, body, status):
     monkeypatch.setattr(llm, "run", lambda *a, **k: pytest.fail("LLM must not be called"))
     assert client.post("/api/chat", json=body).status_code == status
+
+
+# ---------- receipt tools (receipts faked: these test COACH's arithmetic, not the generator) ----------
+
+def fake_item_spend(calls):
+    def item_spend(cid, q, start, end):
+        calls.append(q)
+        hit = q == "energy drink"
+        return {"customer_id": cid, "query": q, "start": str(start), "end": str(end),
+                "total_eur": 210.95 if hit else 0.0, "qty": 75.0 if hit else 0.0, "trips": 20 if hit else 0,
+                "matched_items": ["Energy drink 0.5 l"] if hit else [], "synthetic": True}
+    return item_spend
+
+
+def test_item_what_if_singular_and_rounding(data_env, monkeypatch):
+    from kukkaro.coach import tools
+    calls = []
+    monkeypatch.setattr(tools.receipts, "item_spend", fake_item_spend(calls))
+    r = tools.item_what_if("C1", "Energy Drinks", -50)
+    assert calls == ["energy drinks", "energy drink"]          # tried as given, then singular
+    # 210.95 over Jul-Sep -> 70.32 a month (70.3166…); -50 % -> -35.16; yearly -35.16 x 12 = -421.92
+    assert (r["baseline_monthly_eur"], r["monthly_change_eur"], r["yearly_change_eur"]) == (70.32, -35.16, -421.92)
+    assert r["synthetic"] is True and r["level"] == "item" and r["based_on"]["months"] == 3
+
+
+def test_what_if_route_falls_back_to_items(client, monkeypatch):
+    from kukkaro.coach import tools
+    monkeypatch.setattr(tools.receipts, "item_spend", fake_item_spend([]))
+    ok = client.post("/api/customers/C1/what-if", json={"category_or_item": "energy drink", "change_pct": -50}).json()
+    assert (ok["level"], ok["monthly_eur"], ok["yearly_eur"]) == ("item", -35.16, -421.92)
+    cat = client.post("/api/customers/C1/what-if", json={"category_or_item": "restaurants", "change_pct": -50}).json()
+    assert cat["level"] == "category"
+    bad = client.post("/api/customers/C1/what-if", json={"category_or_item": "unicorn", "change_pct": -50})
+    assert bad.status_code == 422 and "No category or receipt item" in bad.json()["detail"]
+
+
+# ---------- Gemma stage 2: OpenAI-compatible server (vLLM on Verda), faked ----------
+
+def test_strip_thinking():
+    assert llm.strip_thinking("<thought>rules: 120 words, 3 steps</thought>You can spend €127.05.") == "You can spend €127.05."
+    assert llm.strip_thinking("<thought>never closed") == ""
+    assert llm.strip_thinking("Plain answer") == "Plain answer"
+
+
+def test_openai_compatible_tool_loop(monkeypatch):
+    from types import SimpleNamespace as NS
+    sent = []
+
+    class FakeCompletions:
+        def create(self, **kw):
+            sent.append(kw)
+            if len(sent) == 1:
+                call = NS(id="call_1", function=NS(name="safe_to_spend", arguments="{}"))
+                return NS(choices=[NS(message=NS(content="", tool_calls=[call]))])
+            return NS(choices=[NS(message=NS(content="<thought>check</thought>You can spend €127.05 this week.", tool_calls=None))])
+
+    monkeypatch.setenv("GEMMA_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.delenv("GEMMA_HOST", raising=False)
+    monkeypatch.setitem(llm._clients, "openai", NS(chat=NS(completions=FakeCompletions())))
+    r = llm.run("sys", [{"role": "assistant", "content": "Hi"}], "Safe this week?", SPECS,
+                lambda name, args: {"this_week_eur": 127.05}, "gemma")
+    assert (r.text, r.host, r.error) == ("You can spend €127.05 this week.", "verda", None)
+    assert r.tool_calls == [{"name": "safe_to_spend", "args": {}, "result": {"this_week_eur": 127.05}}]
+    second = sent[1]["messages"]
+    assert [m["role"] for m in second] == ["system", "assistant", "user", "assistant", "tool"]
+    assert second[-1] == {"role": "tool", "tool_call_id": "call_1", "content": '{"this_week_eur": 127.05}'}
+    assert sent[0]["tools"][0]["type"] == "function"
+
+
+def test_openai_thinking_only_reply_gets_one_nudge(monkeypatch):
+    from types import SimpleNamespace as NS
+    sent = []
+
+    class FakeCompletions:
+        def create(self, **kw):
+            sent.append(kw)
+            text = "<thought>still thinking about the rules" if len(sent) == 1 else "You spent €90.76 on taxis."
+            return NS(choices=[NS(message=NS(content=text, tool_calls=None))])
+
+    monkeypatch.setenv("GEMMA_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setitem(llm._clients, "openai", NS(chat=NS(completions=FakeCompletions())))
+    r = llm.run("sys", [], "Taxis?", SPECS, lambda n, a: {}, "gemma")
+    assert r.text == "You spent €90.76 on taxis." and len(sent) == 2
+    assert sent[1]["messages"][-1]["role"] == "user" and "No reasoning" in sent[1]["messages"][-1]["content"]

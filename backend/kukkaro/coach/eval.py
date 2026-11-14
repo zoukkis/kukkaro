@@ -40,8 +40,8 @@ QUESTIONS: list[tuple[str, frozenset[str] | None]] = [
     ("What if I spent 20% less on entertainment?", frozenset({"what_if"})),
     ("How much did I spend on fast food in the last three months?", frozenset({"category_spend"})),
     ("What were my unexpected necessities this month?", frozenset({"spending_summary", "category_spend"})),
-    # Things the data cannot answer: the coach must say so, not invent numbers
-    ("How much would halving energy drinks save me?", ANY),   # item level needs receipts
+    # Receipts (synthetic) and one the data cannot answer (the coach must say so, not invent numbers)
+    ("How much would halving energy drinks save me?", frozenset({"item_what_if", "item_spend", "leak_items"})),  # receipts
     ("What's my credit score?", NONE),
 ]
 

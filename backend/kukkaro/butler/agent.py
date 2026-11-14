@@ -70,7 +70,8 @@ PLAN_SCHEMA = {
 ANSWER_SYSTEM = """You are Kukkaro Butler inside the S-mobiili banking app. You do the digging; the user decides.
 Rules:
 1. Use ONLY the numbered sources and the user's bank data given to you. Put [n] after every claim taken from \
-source n. If the sources do not answer something, or disagree, say so plainly.
+source n. Prefer official sources (kela.fi, kkv.fi, finlex.fi, vero.fi, suomi.fi, energiavirasto.fi) whenever \
+they cover the point. If the sources do not answer something, or disagree, say so plainly.
 2. Never say the user "is eligible" or "qualifies". Say "you may be eligible" and explain how to check, \
 with the official page. When a source gives a limit or a price, say plainly where the user's own figure falls \
 (above, below, close to it) without calculating new numbers, e.g. "your average salary in your bank data \
@@ -86,8 +87,9 @@ For price questions (electricity, phone, insurance), use kind "form_prep": a rea
 (what to look up on the current bill, the offers to compare with their prices and sources, how to switch) and \
 set source_n to the best comparison or offer page. Put "to" ONLY if that exact email address appears in a source; \
 otherwise leave it empty. Use placeholders like [your name] and [address] for details the bank data does not have. \
-Set source_n to the source with the official page, form or offer. Use kind "none" only for a pure information \
-question where nothing can be prepared.
+For tax and benefit questions, "form_prep" is the checklist for the official e-service (OmaVero, OmaKela): \
+what to enter, where, and with which of the user's figures. Set source_n to the source with the official page, \
+form or offer. Use kind "none" only if truly nothing can be prepared.
 7. You are not a lawyer or a licensed financial advisor; never recommend loans, investments or specific \
 financial products."""
 
@@ -133,9 +135,36 @@ def _sources(results: list[dict]) -> list[dict]:
     return out
 
 
-def run(customer_id: str, task: str, provider: str | None = "gemini") -> dict[str, Any]:
+ANSWER_CACHE_MAX_AGE_H = 24
+
+
+def _answer_cache_path(customer_id: str, task: str):
+    import hashlib
+    from kukkaro.data.settings import data_dir
+    key = f"{customer_id}|{' '.join(task.lower().split())}"
+    d = data_dir() / "cache" / "butler"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{hashlib.sha256(key.encode()).hexdigest()[:24]}.json"
+
+
+def run(customer_id: str, task: str, provider: str | None = "gemini", use_cache: bool = True) -> dict[str, Any]:
+    """The Butler answer. The same task for the same customer within 24 h comes back from the disk
+    cache (`cached: true`, under a second), so the recorded demo is repeatable; new tasks go live."""
+    import json
     t0 = time.monotonic()
-    ctx = user_context(customer_id)  # raises UnknownCustomer -> 404
+    metrics.customer_profile(customer_id)  # raises UnknownCustomer -> 404 before any cache or web call
+    path = _answer_cache_path(customer_id, task)
+    if use_cache and path.exists() and time.time() - path.stat().st_mtime < ANSWER_CACHE_MAX_AGE_H * 3600:
+        out = json.loads(path.read_text(encoding="utf-8"))
+        return {**out, "cached": True, "seconds": round(time.monotonic() - t0, 2)}
+    out = _run_live(customer_id, task, provider, t0)
+    if not out.get("error"):  # never cache a failure
+        path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return {**out, "cached": False}
+
+
+def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> dict[str, Any]:
+    ctx = user_context(customer_id)
     today = date.today().isoformat()  # web facts are about the real present, not the dataset's last date
 
     plan, plan_run = llm.complete_json(PLAN_SYSTEM, f"Today is {today}.\nTask: {task}\nUser context: {llm.dumps(ctx)}",
@@ -192,7 +221,7 @@ def run(customer_id: str, task: str, provider: str | None = "gemini") -> dict[st
     checked_text = answer + " " + " ".join(out.get("next_steps") or []) + " " + (draft["body"] if draft else "")
     checked_text = re.sub(r"\[\d+(?:\s*[,\]\[]\s*\d+)*\]", " ", checked_text)  # citation markers are not figures
     unverified = numbers.unverified_numbers(checked_text, [{"name": "context", "args": {}, "result": ctx}],
-                                            all_text + " " + today)
+                                            all_text + " " + today + " " + task)  # the user's own numbers count
     return {
         **base,
         "answer": answer,
