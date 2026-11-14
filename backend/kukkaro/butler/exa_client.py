@@ -22,6 +22,11 @@ log = logging.getLogger("kukkaro.exa")
 
 OFFICIAL_DOMAINS = ["kela.fi", "vero.fi", "kkv.fi", "suomi.fi", "finlex.fi", "energiavirasto.fi",
                     "kuluttajariitalautakunta.fi", "oikeus.fi", "ara.fi", "hel.fi", "espoo.fi", "vantaa.fi"]
+# S-Group rule (root AGENTS.md §7): grocery and everyday-product searches only use S-Group's own sites,
+# and competitor grocery sites are never searched or cited.
+S_GROUP_DOMAINS = ["s-kaupat.fi", "s-ryhma.fi", "alepa.fi", "sale.fi", "prisma.fi", "s-market.fi"]
+COMPETITOR_GROCERY_DOMAINS = ["k-ruoka.fi", "kesko.fi", "k-citymarket.fi", "k-supermarket.fi", "k-market.fi",
+                              "lidl.fi", "tokmanni.fi", "minimani.fi", "halpa-halli.fi", "wolt.com"]
 CACHE_MAX_AGE_H = 24
 TIMEOUT_S = 12
 
@@ -47,10 +52,15 @@ def _cache_path(key: dict):
 
 
 def search(query: str, domains: list[str] | None = None, num_results: int = 5, search_type: str = "auto",
-           highlights_chars: int = 1200, max_age_h: float = CACHE_MAX_AGE_H) -> dict[str, Any]:
+           highlights_chars: int = 1200, max_age_h: float = CACHE_MAX_AGE_H,
+           exclude: list[str] | None = None) -> dict[str, Any]:
     """Returns {query, domains, results: [{title, url, published_date, highlights[]}], cached, seconds}.
-    Errors come back as {"error": ...} with no results, never raised."""
+    Errors come back as {"error": ...} with no results, never raised. Exa allows include OR exclude
+    domains, so `exclude` only applies when `domains` is empty."""
+    exclude = None if domains else exclude
     key = {"q": query.strip(), "d": sorted(domains or []), "n": num_results, "t": search_type, "h": highlights_chars}
+    if exclude:
+        key["x"] = sorted(exclude)
     path = _cache_path(key)
     if path.exists() and (time.time() - path.stat().st_mtime) < max_age_h * 3600:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -59,7 +69,7 @@ def search(query: str, domains: list[str] | None = None, num_results: int = 5, s
     try:
         resp = _exa().search(
             query.strip(), type=search_type, num_results=num_results, include_domains=domains or None,
-            user_location="FI", contents={"highlights": {"max_characters": highlights_chars}}, timeout=TIMEOUT_S)
+            exclude_domains=exclude or None, user_location="FI", contents={"highlights": {"max_characters": highlights_chars}}, timeout=TIMEOUT_S)
     except Exception as e:
         key_s = os.environ.get("EXA_API_KEY") or ""
         msg = f"{type(e).__name__}: {str(e).replace(key_s, '<key>') if key_s else e}"[:300]
@@ -75,6 +85,6 @@ def search(query: str, domains: list[str] | None = None, num_results: int = 5, s
 
 
 def search_many(queries: list[dict]) -> list[dict]:
-    """Run several searches in parallel. Each item: {query, domains?}."""
+    """Run several searches in parallel. Each item: {query, domains?, exclude?}."""
     with ThreadPoolExecutor(max_workers=min(4, max(1, len(queries)))) as ex:
-        return list(ex.map(lambda q: search(q["query"], q.get("domains")), queries))
+        return list(ex.map(lambda q: search(q["query"], q.get("domains"), exclude=q.get("exclude")), queries))

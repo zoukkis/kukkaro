@@ -193,12 +193,25 @@ export interface Figure {
   source: string; // which period / basket the number came from
 }
 
+export interface ChatSource {
+  n: number;
+  title: string;
+  url: string;
+  published_date?: string | null;
+}
+
+// Privacy design (root AGENTS.md §4): one assistant, no model picker. Each answer says which zones took part.
 export interface ChatResponse {
   answer: string;
   tool_calls: ToolCall[];
   figures: Figure[];
+  zones?: ("trusted" | "public")[]; // "public" = the web was searched with an anonymised question
+  fallback?: boolean; // the backup model answered this turn
+  trusted_host?: string | null; // "verda" = Gemma in the EU; otherwise "open model"
+  research?: { question_sent: string | null; blocked: string[]; kind?: string }[];
+  sources?: ChatSource[];
   model?: string;
-  host?: string; // "google" | "verda": "EU privacy mode" may only be shown when "verda"
+  host?: string;
   provider?: Provider;
   number_check?: "ok" | "retried" | "withheld";
 }
@@ -251,10 +264,10 @@ const real = {
       method: "POST",
       body: JSON.stringify({ plan_id, include_treats, delivery }),
     }),
-  chat: (customer_id: string, message: string, history: ChatTurn[], provider?: Provider) =>
+  chat: (customer_id: string, message: string, history: ChatTurn[]) =>
     http<ChatResponse>(`/chat`, {
       method: "POST",
-      body: JSON.stringify({ customer_id, message, history, ...(provider ? { provider } : {}) }),
+      body: JSON.stringify({ customer_id, message, history }),
     }),
 };
 
@@ -525,8 +538,8 @@ const mock: typeof real = {
       left_this_week_after_order_eur: 110.3, note: "Mock data.",
     }
   ),
-  chat: async (_id, message, _history, provider) => (
-    await wait(900), { ...mockChat(message), model: "mock", provider: provider ?? "gemini", host: "mock" }
+  chat: async (_id, message) => (
+    await wait(900), { ...mockChat(message), model: "mock", host: "mock", zones: ["trusted"], fallback: false }
   ),
 };
 

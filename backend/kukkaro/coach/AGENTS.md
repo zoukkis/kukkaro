@@ -50,6 +50,17 @@ exact numbers from DATA and RECEIPTS, and the LLM explains them kindly and brief
    Check that every number in each answer appears in the tool outputs. Run it with both providers
    and log the results in DECISIONS.md. This is the evidence for "Gemini vs. Gemma" in the pitch.
 
+## Privacy design (decided 14 Nov; root AGENTS.md §4)
+- `router.py`: Gemma (`TRUSTED_PROVIDER`) answers every turn; Gemini (`FALLBACK_PROVIDER`) only after
+  Gemma failed (error, timeout, or number check) and one retry. A slow failure (> 20 s) skips the retry.
+  The response carries `zones`, `fallback`, `trusted_host`, `research[]`, `sources[]`; `GET /api/chat/stats`
+  counts trusted vs fallback turns. No `provider` field in the request any more (no model picker).
+- `tools.py`: `research_web(question)` is the only way to outside facts. `Executor` remembers every tool
+  result so the gateway can block a question that repeats one of the customer's exact figures.
+- `privacy.py`: the gateway's checks, `banded_context()` (region + age band), `REFUSAL_TEXT`.
+- The number check also reads web facts ("1,19 €"); an answer naming another grocery chain is retried.
+- `eval.py` (default `--provider privacy`) reports the Gemma-vs-fallback rate.
+
 ## Stretch (only after the M2 milestone in docs/PLAN.md)
 - `POST /api/receipt-scan`: Gemini vision reads a photographed paper receipt into the Receipt
   schema, **in memory only, never stored or logged**. Demo with a receipt handed over on the spot.

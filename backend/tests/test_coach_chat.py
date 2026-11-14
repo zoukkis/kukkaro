@@ -119,7 +119,7 @@ def test_chat_route(client, monkeypatch):
 @pytest.mark.parametrize("body, status", [
     ({"customer_id": "NOPE", "message": "hi"}, 404),
     ({"customer_id": "C1", "message": ""}, 422),
-    ({"customer_id": "C1", "message": "hi", "provider": "openai"}, 422),
+    ({"customer_id": "C1", "message": "hi", "history": [{"role": "system", "content": "x"}]}, 422),
 ])
 def test_chat_route_errors(client, monkeypatch, body, status):
     monkeypatch.setattr(llm, "run", lambda *a, **k: pytest.fail("LLM must not be called"))
@@ -234,10 +234,10 @@ def _fake_runs(texts):
     calls = []
 
     def fake_run(system, history, message, tools, execute, provider=None):
-        calls.append({"message": message, "history": history})
+        calls.append({"message": message, "history": history, "provider": provider})
         out = execute("safe_to_spend", {})
         text = texts[len(calls) - 1]
-        r = llm.RunResult(text=text, model="fake", host="verda", provider="gemma")
+        r = llm.RunResult(text=text, model="fake", host="verda", provider=provider or "gemma")
         if "{week}" in text:
             r.text = text.format(week=out["this_week_eur"])
             r.tool_calls = [{"name": "safe_to_spend", "args": {}, "result": out}]
@@ -249,15 +249,59 @@ def test_invented_number_gets_one_retry(data_env, monkeypatch):
     from kukkaro.coach import router
     fake, calls = _fake_runs(["You can spend 74.50 € this week.", "You can spend €{week} this week."])
     monkeypatch.setattr(llm, "run", fake)
-    out = router.answer("C1", "What can I safely spend this week?", [], "gemma")
+    out = router.answer("C1", "What can I safely spend this week?", [])
     assert out["answer"] == "You can spend €2836.4 this week." and out["number_check"] == "retried"
+    assert out["fallback"] is False and out["zones"] == ["trusted"] and out["trusted_host"] == "verda"
     assert out["unverified_numbers"] == [] and "74.5" in calls[1]["message"]
     assert calls[1]["history"][-1] == {"role": "assistant", "content": "You can spend 74.50 € this week."}
 
 
-def test_invented_numbers_twice_are_withheld(data_env, monkeypatch):
+def test_gemma_fails_twice_then_gemini_answers_and_is_labelled(data_env, monkeypatch):
     from kukkaro.coach import router
-    fake, _ = _fake_runs(["You can spend 74.50 € this week.", "Maybe 80 € then."])
+    fake, calls = _fake_runs(["You can spend 74.50 € this week.", "Maybe 80 € then.", "You can spend €{week} this week."])
     monkeypatch.setattr(llm, "run", fake)
-    out = router.answer("C1", "What can I safely spend this week?", [], "gemma")
+    out = router.answer("C1", "What can I safely spend this week?", [])
+    assert out["answer"] == "You can spend €2836.4 this week." and out["fallback"] is True
+    assert out["zones"] == ["trusted"] and out["primary_error"].startswith("80")
+    assert [c.get("provider") for c in calls] == ["gemma", "gemma", "gemini"]
+
+
+def test_invented_numbers_on_both_models_are_withheld(data_env, monkeypatch):
+    from kukkaro.coach import router
+    fake, _ = _fake_runs(["You can spend 74.50 € this week.", "Maybe 80 € then.", "Or 90 €.", "Say 95 €."])
+    monkeypatch.setattr(llm, "run", fake)
+    out = router.answer("C1", "What can I safely spend this week?", [])
     assert out["answer"] == router.WITHHELD_TEXT and out["number_check"] == "withheld" and out["figures"] == []
+    assert out["fallback"] is True
+
+
+def test_slow_gemma_error_goes_straight_to_fallback(data_env, monkeypatch):
+    from kukkaro.coach import router
+    calls = []
+
+    def fake_run(system, history, message, tools, execute, provider=None):
+        calls.append(provider)
+        out = execute("safe_to_spend", {})
+        if provider == "gemma":
+            return llm.RunResult(text=llm.FALLBACK_TEXT, model="g", host="google", provider="gemma", seconds=40, error="timeout")
+        r = llm.RunResult(text=f"You can spend €{out['this_week_eur']} this week.", model="gem", host="google", provider="gemini")
+        r.tool_calls = [{"name": "safe_to_spend", "args": {}, "result": out}]
+        return r
+    monkeypatch.setattr(llm, "run", fake_run)
+    out = router.answer("C1", "What can I safely spend this week?", [])
+    assert calls == ["gemma", "gemini"] and out["fallback"] is True and out["trusted_host"] is None
+    assert router.chat_stats()["fallback"] >= 1
+
+
+def test_web_fact_numbers_in_finnish_format_are_allowed(data_env, monkeypatch):
+    from kukkaro.coach import router
+    fact = {"question_sent": "q", "facts": [{"text": "Oat drink 1 l costs 1,19 € at S-kaupat.", "sources": [1]}],
+            "sources": [{"n": 1, "title": "S-kaupat", "url": "https://www.s-kaupat.fi/x"}]}
+
+    def fake_run(system, history, message, tools, execute, provider=None):
+        r = llm.RunResult(text="Oat drink costs 1,19 € at S-kaupat [1].", model="fake", host="google", provider=provider)
+        r.tool_calls = [{"name": "research_web", "args": {"question": "q"}, "result": fact}]
+        return r
+    monkeypatch.setattr(llm, "run", fake_run)
+    out = router.answer("C1", "Where can I buy cheap oat milk?", [])
+    assert out["number_check"] == "ok" and out["fallback"] is False

@@ -9,8 +9,11 @@ turn must be passed back unchanged.
 Providers (`LLM_PROVIDER` in .env, or per request):
 - gemini: Google Gen AI SDK, model `GEMINI_MODEL` (default gemini-4-hydrogen), thinking "low".
 - gemma:  Stage 1 = Gemma 4 through the same Gemini API and key (`GEMMA_MODEL`); thinking level is
-          not supported there, so it is left out. Stage 2 = vLLM on Verda via `GEMMA_BASE_URL` (not
-          wired yet; see docs/DECISIONS.md).
+          not supported there, so it is left out. Stage 2 = vLLM on Verda via `GEMMA_BASE_URL`
+          (OpenAI-compatible), used whenever it is set.
+
+Privacy design (root AGENTS.md §4): Gemma is the trusted-zone model (it sees customer data); Gemini is
+the public-zone research model and the per-turn backup (coach/router.py decides which runs).
 
 Errors and timeouts never raise: the caller gets a friendly fallback text and `error` set.
 """
@@ -31,6 +34,15 @@ MAX_TOOL_ROUNDS = 5
 # Seconds per model call and per whole answer. Gemma through Google's API (stage 1) is slower, and
 # Google ends a call at our deadline (504), so it gets more room; the UI shows a loading state.
 TIMEOUTS = {"gemini": (15, 30), "gemma": (35, 60)}
+# Gemma through Google's API (stage 1) often runs into Google's own deadline (504) on longer turns; in the
+# privacy design Gemini then answers the turn, so give up sooner instead of making the user wait.
+STAGE1_GEMMA_TIMEOUTS = (25, 40)
+
+
+def timeouts(provider: str) -> tuple[int, int]:
+    if provider == "gemma" and not os.environ.get("GEMMA_BASE_URL"):
+        return STAGE1_GEMMA_TIMEOUTS
+    return TIMEOUTS[provider]
 # If the primary model fails (timeout, 5xx), the whole answer is redone once with this model, as long
 # as this many seconds are left. A fresh run, because signed tool calls belong to the model that made them.
 FALLBACK_MODELS = {"gemini": "gemini-3.8-flash", "gemma": None}
@@ -54,6 +66,7 @@ class RunResult:
     seconds: float = 0.0
     round_seconds: list[float] = field(default_factory=list)  # per model call, for tuning latency
     error: str | None = None
+    fallback_used: bool = False  # complete_json: the fallback provider answered
 
 
 def provider_config(provider: str | None = None) -> dict[str, str]:
@@ -80,7 +93,7 @@ def _google_client(provider: str):
         key = os.environ.get("GEMINI_API_KEY")
         if not key:
             raise RuntimeError("GEMINI_API_KEY is not set")
-        _clients[provider] = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=TIMEOUTS[provider][0] * 1000))
+        _clients[provider] = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=timeouts(provider)[0] * 1000))
     return _clients[provider]
 
 
@@ -197,7 +210,7 @@ def run(system: str, history: list[dict], message: str, tools: list[ToolSpec],
         execute: Callable[[str, dict], dict], provider: str | None = None) -> RunResult:
     cfg = provider_config(provider)
     t0 = time.monotonic()
-    deadline = t0 + TIMEOUTS[cfg["provider"]][1]
+    deadline = t0 + timeouts(cfg["provider"])[1]
     openai_compatible = bool(os.environ.get("GEMMA_BASE_URL")) and cfg["provider"] == "gemma"
     models = [cfg["model"]] + ([FALLBACK_MODELS[cfg["provider"]]] if FALLBACK_MODELS.get(cfg["provider"]) and not openai_compatible else [])
     errors: list[str] = []
@@ -227,14 +240,65 @@ def run(system: str, history: list[dict], message: str, tools: list[ToolSpec],
     return result
 
 
-def complete_json(system: str, prompt: str, schema: dict, provider: str | None = None) -> tuple[dict | None, RunResult]:
-    """One structured answer (JSON matching `schema`) with no tools; used by the Butler.
-    Same timeouts and fallback model as `run()`. Returns (parsed JSON or None, RunResult)."""
+def _parse_json(text: str) -> dict:
+    t = strip_thinking(text or "")
+    t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t.strip())
+    m = re.search(r"\{.*\}", t, re.DOTALL)
+    return json.loads(m.group(0) if m else t)
+
+
+def _complete_json_openai(cfg: dict, system: str, prompt: str, schema: dict) -> tuple[dict | None, RunResult]:
+    """Gemma on vLLM (Verda): JSON mode through the OpenAI-compatible API, schema given in the prompt."""
+    from openai import OpenAI
+
+    t0 = time.monotonic()
+    result = RunResult(text="", model=cfg["model"], host=cfg["host"], provider=cfg["provider"])
+    try:
+        if "openai" not in _clients:
+            _clients["openai"] = OpenAI(base_url=os.environ["GEMMA_BASE_URL"], api_key=os.environ.get("GEMMA_API_KEY") or "none",
+                                        timeout=TIMEOUTS["gemma"][0], max_retries=0)
+        msgs = [{"role": "system", "content": f"{system}\n\nReply with only one JSON object matching this JSON schema, "
+                                              f"no other text:\n{json.dumps(schema)}"},
+                {"role": "user", "content": prompt}]
+        t = time.monotonic()
+        resp = _clients["openai"].chat.completions.create(model=cfg["model"], messages=msgs, temperature=0.2,
+                                                          response_format={"type": "json_object"},
+                                                          max_tokens=int(os.environ.get("GEMMA_MAX_TOKENS") or 1500))
+        result.round_seconds.append(round(time.monotonic() - t, 2))
+        result.text = resp.choices[0].message.content or ""
+        parsed = _parse_json(result.text)
+    except Exception as e:
+        key = os.environ.get("GEMMA_API_KEY") or ""
+        result.error = f"{cfg['model']}: {type(e).__name__}: {str(e).replace(key, '<key>') if key else e}"[:300]
+        log.warning("JSON completion failed: %s", result.error)
+        parsed = None
+    result.seconds = round(time.monotonic() - t0, 2)
+    return parsed, result
+
+
+def complete_json(system: str, prompt: str, schema: dict, provider: str | None = None,
+                  fallback_provider: str | None = None) -> tuple[dict | None, RunResult]:
+    """One structured answer (JSON matching `schema`) with no tools; used by the Butler and the research
+    worker. Same timeouts and fallback model as `run()`. If it fails and `fallback_provider` is given,
+    that provider answers instead (`result.fallback_used`). Returns (parsed JSON or None, RunResult)."""
+    parsed, result = _complete_json_one(system, prompt, schema, provider)
+    if parsed is None and fallback_provider and fallback_provider != result.provider:
+        first_error, first_s = result.error, result.seconds
+        parsed, result = _complete_json_one(system, prompt, schema, fallback_provider)
+        result.fallback_used = True
+        result.seconds = round(first_s + result.seconds, 2)
+        log.info("JSON answered by fallback %s after: %s", fallback_provider, first_error)
+    return parsed, result
+
+
+def _complete_json_one(system: str, prompt: str, schema: dict, provider: str | None) -> tuple[dict | None, RunResult]:
     from google.genai import types
 
     cfg = provider_config(provider)
+    if cfg["provider"] == "gemma" and os.environ.get("GEMMA_BASE_URL"):
+        return _complete_json_openai(cfg, system, prompt, schema)
     t0 = time.monotonic()
-    deadline = t0 + TIMEOUTS[cfg["provider"]][1]
+    deadline = t0 + timeouts(cfg["provider"])[1]
     models = [cfg["model"]] + ([FALLBACK_MODELS[cfg["provider"]]] if FALLBACK_MODELS.get(cfg["provider"]) else [])
     errors: list[str] = []
     result = RunResult(text="", model=cfg["model"], host="google", provider=cfg["provider"])
@@ -251,7 +315,7 @@ def complete_json(system: str, prompt: str, schema: dict, provider: str | None =
             resp = _google_client(cfg["provider"]).models.generate_content(model=model, contents=prompt, config=gen_cfg)
             result.round_seconds.append(round(time.monotonic() - t, 2))
             result.text = resp.text or ""
-            parsed = json.loads(result.text)
+            parsed = _parse_json(result.text) if cfg["provider"] == "gemma" else json.loads(result.text)
             break
         except Exception as e:
             key = os.environ.get("GEMINI_API_KEY") or ""

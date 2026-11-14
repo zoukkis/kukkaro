@@ -35,6 +35,17 @@ specific drivers from receipts, plus a Butler that brings in current official in
    It must also survive free-form questions from judges. Test 10 unseen phrasings.
 4. **`router.py`**: `POST /api/butler` per root AGENTS.md §5.4. COACH mounts it in `api/main.py`.
 
+## Privacy design (decided 14 Nov; root AGENTS.md §4)
+- `research.py` is the **public-zone research worker**: `research(question)` gets ONE anonymised
+  question (never customer data), plans Exa searches, and Gemini writes facts only from the pages
+  (`{facts[{text, sources[n]}], sources[{n,title,url}]}`). Cached per question in `data/cache/research/`.
+  The coach calls it through `research_web`; `/api/butler` calls it through the same gateway.
+- `agent.run()`: the task is checked by `coach/privacy.py` and sent with banded context only
+  ("Espoo region, age 20–25"); Gemma (Gemini as backup) writes the answer with the user's figures.
+- S-Group rule: grocery/product questions search `exa_client.S_GROUP_DOMAINS` only; competitor
+  grocery sites are excluded from other searches and dropped from results; facts naming competitor
+  chains are dropped. Official topics keep `OFFICIAL_DOMAINS`.
+
 ## Rules
 - Never claim someone **is** eligible. Say "you may be eligible; here's how to check", with the official link.
 - Use the LLM interface from `kukkaro.coach.llm` (don't add another SDK). Ask COACH if you need changes.

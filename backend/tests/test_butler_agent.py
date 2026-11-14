@@ -18,14 +18,22 @@ SOURCES = [{"query": "q", "domains": exa_client.OFFICIAL_DOMAINS, "cached": Fals
 
 
 def fake_llm(answer_json):
+    """complete_json stand-in. Records (system, prompt, provider) so tests can check what each zone saw."""
     calls = []
 
-    def complete_json(system, prompt, schema, provider=None):
-        calls.append(prompt)
-        r = llm.RunResult(text="{}", model="fake", host="google", provider="gemini")
-        if "searches" in schema["properties"]:
-            return {"searches": [{"query": "Kela yleinen asumistuki tulorajat", "official_only": True}]}, r
-        return answer_json, r
+    def complete_json(system, prompt, schema, provider=None, fallback_provider=None):
+        calls.append({"system": system, "prompt": prompt, "provider": provider})
+        r = llm.RunResult(text="{}", model="fake", host="google", provider=provider or "gemini")
+        props = schema["properties"]
+        if "kind" in props:            # research worker: plan
+            return {"kind": "official", "searches": ["Kela yleinen asumistuki tulorajat"]}, r
+        if "facts" in props:           # research worker: facts from the pages
+            return {"facts": [{"text": "Tuloraja 1 844 € kuukaudessa yhdelle aikuiselle.", "sources": [1]},
+                              {"text": "Kela has an allowance calculator.", "sources": [2]},
+                              {"text": "Made up", "sources": [7]}]}, r
+        if "question" in props:        # gateway rewrite
+            return {"question": "Kela housing allowance rules"}, r
+        return answer_json, r          # trusted zone: the answer
     return complete_json, calls
 
 
@@ -33,6 +41,7 @@ def fake_llm(answer_json):
 def empty_answer_cache(data_env):
     import shutil
     shutil.rmtree(data_env["root"] / "cache" / "butler", ignore_errors=True)
+    shutil.rmtree(data_env["root"] / "cache" / "research", ignore_errors=True)
 
 
 @pytest.fixture
@@ -68,7 +77,35 @@ def test_guards(data_env, fakes):
     assert r["draft"]["open_url"] == "https://laskurit.kela.fi/yleisen-asumistuen-laskuri"
     assert r["draft"]["mailto"].startswith("mailto:?subject=Asumistuki")
     assert r["unverified_numbers"] == []                              # 2500.0 from data, 1 844 from the source
-    assert "Today is" in calls[1] and "[1] Yleinen asumistuki" in calls[1]
+    answer_call = calls[-1]
+    assert "Today is" in answer_call["prompt"] and "[1] Yleinen asumistuki" in answer_call["prompt"]
+    assert answer_call["provider"] == "gemma"                         # the trusted zone writes the answer
+    assert r["zones"] == ["trusted", "public"] and r["fallback"] is False
+
+
+def test_public_zone_never_sees_customer_data(data_env, fakes):
+    calls = fakes({"answer": "Info [1].", "next_steps": [], "draft": {"kind": "none", "subject": "", "body": ""}})
+    r = agent.run("C1", "Am I eligible for housing allowance?")
+    sent = r["research"]["question_sent"]
+    assert sent == "Am I eligible for housing allowance? (Espoo region, age 30–35)"
+    public = [c for c in calls if c["provider"] == "gemini"]          # research plan + facts
+    assert len(public) == 2
+    for c in public:
+        for private in ("C1", "02150", "2500", "800.0", "age\": 30"):
+            assert private not in c["prompt"], private
+    assert "2500.0" in calls[-1]["prompt"]                            # only the trusted zone sees the figures
+
+
+def test_leaking_task_is_rewritten_once_or_refused(data_env, fakes, monkeypatch):
+    calls = fakes({"answer": "Info [1].", "next_steps": [], "draft": {"kind": "none", "subject": "", "body": ""}})
+    r = agent.run("C1", "Housing allowance for C1, salary 2500.55 €, postal code 02150?")
+    assert r["research"]["question_sent"].startswith("Kela housing allowance rules")
+    assert calls[0]["provider"] == "gemma"                            # the rewrite happens in the trusted zone
+    from kukkaro.butler import agent as a
+    fn, _ = fake_llm({})
+    monkeypatch.setattr(llm, "complete_json", lambda *x, **k: ({"question": "still 02150"}, llm.RunResult(text="")))
+    r2 = a.run("C1", "Rent rules at 02150, my rent is 800.00 €", use_cache=False)
+    assert r2["error"] == "blocked" and r2["research"]["question_sent"] is None and r2["sources"] == []
 
 
 def test_address_from_a_source_is_kept_and_invented_numbers_flagged(data_env, fakes):

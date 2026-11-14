@@ -1,13 +1,15 @@
 """Coach eval: 15 fixed questions for the demo customer, checked automatically.
 
-Usage (from backend/):  python -m kukkaro.coach.eval --provider both
+Usage (from backend/):  python -m kukkaro.coach.eval              # the privacy design: Gemma, Gemini as backup
+                        python -m kukkaro.coach.eval --provider gemini   # one model only, no fallback
 Writes a JSON report to data/cache/eval/ (gitignored) and prints a summary line for docs/DECISIONS.md.
 
 A question passes when:
 - the coach answered (no LLM error),
 - every number in the answer appears in the tool outputs (coach/numbers.py, the same check the API uses),
-- it called one of the expected tools (or no tool, for questions the data cannot answer).
-This is the evidence for "Gemini vs. Gemma" in the pitch.
+- it called one of the expected tools (or no tool, for questions the data cannot answer),
+- it names no other grocery chain (S-Group rule).
+The report counts how many turns Gemma (trusted zone) answered and how many fell back to Gemini.
 """
 from __future__ import annotations
 
@@ -42,14 +44,20 @@ QUESTIONS: list[tuple[str, frozenset[str] | None]] = [
     ("What were my unexpected necessities this month?", frozenset({"spending_summary", "category_spend"})),
     # Receipts (synthetic) and one the data cannot answer (the coach must say so, not invent numbers)
     ("How much would halving energy drinks save me?", frozenset({"item_what_if", "item_spend", "leak_items"})),  # receipts
+    # Privacy design: outside facts through the gateway (research_web), combined with the user's own numbers
+    ("Am I overpaying for electricity?", frozenset({"research_web"})),
+    ("Where can I buy cheap oat milk?", frozenset({"research_web"})),
     ("What's my credit score?", NONE),
 ]
 
 
 def check(question: str, expected: frozenset[str] | None, out: dict) -> dict:
+    from kukkaro.butler.research import competitor_mentions
     used = {c["name"] for c in out["tool_calls"]}
     if out.get("error"):
         reason = "error"
+    elif competitor_mentions(out["answer"]):
+        reason = f"names {competitor_mentions(out['answer'])}"
     elif out["unverified_numbers"]:
         reason = f"unverified numbers {out['unverified_numbers']}"
     elif expected is not None and not expected and used:
@@ -60,11 +68,14 @@ def check(question: str, expected: frozenset[str] | None, out: dict) -> dict:
         reason = ""
     return {"question": question, "pass": not reason, "reason": reason, "tools": sorted(used),
             "seconds": out["seconds"], "model": out["model"], "host": out["host"], "answer": out["answer"],
+            "fallback": out.get("fallback", False), "zones": out.get("zones"),
+            "research": [x.get("question_sent") for x in out.get("research") or []],
             "unverified_numbers": out["unverified_numbers"]}
 
 
 # Gemma on Google's API (stage 1) has a low per-minute quota (429s without a pause); Verda (stage 2) has none.
 PAUSE_S = {"gemini": 0, "gemma": 0 if os.environ.get("GEMMA_BASE_URL") else 8}
+PAUSE_S["privacy"] = PAUSE_S["gemma"]
 
 
 def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> dict:
@@ -74,10 +85,12 @@ def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> d
     for i, (q, expected) in enumerate(QUESTIONS):
         if i and pause:
             time.sleep(pause)
-        out = answer(customer_id, q, [], provider)
+        out = (answer(customer_id, q, []) if provider == "privacy"
+               else answer(customer_id, q, [], trusted=provider, fallback=None))
         rows.append({**check(q, expected, out), "error": out.get("error"), "number_check": out.get("number_check")})
         r = rows[-1]
-        print(f"  [{'PASS' if r['pass'] else 'FAIL'}] {r['seconds']:>5.1f}s {q}" + (f"  -> {r['reason']}" if r["reason"] else ""))
+        print(f"  [{'PASS' if r['pass'] else 'FAIL'}] {r['seconds']:>5.1f}s {'↩ ' if r['fallback'] else ''}{q}"
+              + (f"  -> {r['reason']}" if r["reason"] else ""))
     answered = [r for r in rows if not r["error"]]
     secs = [r["seconds"] for r in answered] or [0.0]
     return {"provider": provider, "model": rows[0]["model"], "host": rows[0]["host"], "customer_id": customer_id,
@@ -86,12 +99,16 @@ def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> d
             "errors": [r["error"][:80] for r in rows if r["error"]],
             "retried": sum(r.get("number_check") == "retried" for r in rows),
             "withheld": sum(r.get("number_check") == "withheld" for r in rows),
+            "fallback": sum(bool(r.get("fallback")) for r in rows),
+            "fallback_rate_pct": round(100 * sum(bool(r.get("fallback")) for r in rows) / len(rows), 1),
+            "research_turns": sum(1 for r in rows if r.get("research")),
             "median_s": round(statistics.median(secs), 1), "max_s": round(max(secs), 1), "rows": rows}
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--provider", choices=["gemini", "gemma", "both"], default="both")
+    p.add_argument("--provider", choices=["privacy", "gemini", "gemma", "both"], default="privacy",
+                   help="privacy = Gemma with Gemini as backup (the app); gemini/gemma = one model, no fallback")
     p.add_argument("--customer", default=os.environ.get("DEMO_CUSTOMER_ID") or "CUST02979")
     a = p.parse_args()
     metrics.warm_up(a.customer)
@@ -109,7 +126,9 @@ def main() -> None:
     for r in reports:
         print(f"DECISIONS: eval {r['provider']} ({r['model']}, {r['host']}) on {r['customer_id']}: "
               f"{r['passed']}/{r['total']} pass; {r['passed_of_answered']}/{r['answered']} of answered; "
-              f"{len(r['errors'])} errors; number check retried {r['retried']}, withheld {r['withheld']}; median {r['median_s']} s, max {r['max_s']} s (answered only)")
+              f"{len(r['errors'])} errors; number check retried {r['retried']}, withheld {r['withheld']}; "
+              f"fallback to Gemini {r['fallback']}/{r['total']} ({r['fallback_rate_pct']}%); "
+              f"median {r['median_s']} s, max {r['max_s']} s (answered only)")
 
 
 if __name__ == "__main__":
