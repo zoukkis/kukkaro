@@ -2,6 +2,8 @@
 
 Built at **Junction 2026** (Espoo, 13–15 Nov 2026) by team Sisu Warriors. MIT licensed.
 
+**Live demo:** https://135.181.63.207.compute.verda.run (open on a phone; synthetic demo customer)
+
 > All data in this project is **synthetic**: S-Bank's synthetic transaction dataset, plus receipt
 > line items we generate ourselves. No real personal or banking data is used.
 
