@@ -54,7 +54,9 @@ export default function Butler() {
   return (
     <div className="page butler">
       <div className="welcome">
-        <p className="eyebrow rise" style={stagger(0)}>Kukkaro Butler</p>
+        <p className="eyebrow mono rise" style={stagger(0)}>
+          Kukkaro Butler <span className="powered">· search by Exa</span>
+        </p>
         <h1 className="display rise" style={stagger(1)}>
           Money you might be <em>missing.</em>
         </h1>
@@ -110,12 +112,12 @@ export default function Butler() {
       </div>
 
       {busy && (
-        <section className="card progress" aria-live="polite">
-          <p className="butler-task">“{task}”</p>
+        <section className="card exa progress" aria-live="polite">
+          <p className="butler-task"><span className="q" aria-hidden>search</span>{task}</p>
           <ol className="stages">
             {STAGES.map((s, i) => (
               <li key={s} className={i < stage ? "done" : i === stage ? "now" : ""}>
-                <span className="stage-dot" aria-hidden /> {s}
+                <span className="stage-n" aria-hidden>{String(i + 1).padStart(2, "0")}</span> {s}
               </li>
             ))}
           </ol>
@@ -124,8 +126,8 @@ export default function Butler() {
       {error && <p className="status">Couldn't reach the Butler. Please try again in a moment.</p>}
 
       {res && !busy && (
-        <section className="card butler-answer reveal-in" aria-live="polite">
-          <p className="butler-task">“{task}”</p>
+        <section className="card exa butler-answer reveal-in" aria-live="polite">
+          <p className="butler-task"><span className="q" aria-hidden>search</span>{task}</p>
           <p className="answer">{withCitations(res.answer, res.sources)}</p>
 
           {res.draft && <Draft draft={res.draft} />}
@@ -147,7 +149,7 @@ export default function Butler() {
 
           {res.sources.length > 0 && (
             <>
-              <h3 className="section-title">Sources</h3>
+              <h3 className="section-title">Sources <span className="powered">· found with Exa</span></h3>
               <ol className="sources">
                 {res.sources.map((s) => (
                   <li key={s.n} id={`src-${s.n}`} className={s.cited ? "cited" : ""}>
