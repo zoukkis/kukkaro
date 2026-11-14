@@ -30,8 +30,8 @@ Crushed tomatoes 400 g,dry goods,0.99,MANDATORY_REGULAR,false,2,Store brand crus
 Store brand crushed tomatoes 400 g,dry goods,0.59,MANDATORY_REGULAR,true,2,
 Muesli 500 g,dry goods,3.49,MANDATORY_REGULAR,false,1,Store brand muesli 500 g
 Store brand muesli 500 g,dry goods,2.19,MANDATORY_REGULAR,true,1,
-Ground coffee 500 g,coffee & tea,6.99,MANDATORY_REGULAR,false,1,Store brand ground coffee 500 g
-Store brand ground coffee 500 g,coffee & tea,4.99,MANDATORY_REGULAR,true,1,
+Ground coffee 500 g,coffee & tea,8.49,MANDATORY_REGULAR,false,1,Store brand ground coffee 500 g
+Store brand ground coffee 500 g,coffee & tea,6.29,MANDATORY_REGULAR,true,1,
 Tea bags 20 pcs,coffee & tea,2.29,MANDATORY_REGULAR,false,1,
 Cooking oil 1 l,dry goods,3.49,MANDATORY_REGULAR,false,1,
 Minced meat 400 g,meat,4.79,MANDATORY_REGULAR,false,1,Store brand minced meat 400 g
@@ -73,12 +73,12 @@ LED light bulb,household,4.49,MANDATORY_IRREGULAR,false,1,
 Energy drink 0.5 l,drinks,2.29,EVERYDAY,false,2,
 Soft drink 1.5 l,drinks,2.69,EVERYDAY,false,1,
 Soft drink can 0.33 l,drinks,1.39,EVERYDAY,false,2,
-Coffee to go,coffee & tea,2.90,EVERYDAY,false,1,
+Coffee to go,coffee & tea,3.20,EVERYDAY,false,1,
 Iced coffee 250 ml,drinks,2.49,EVERYDAY,false,1,
 Candy bag 300 g,sweets,3.29,EVERYDAY,false,1,
 Pick-and-mix candy 200 g,sweets,2.40,EVERYDAY,false,1,
-Chocolate bar,sweets,1.49,EVERYDAY,false,2,
-Chocolate 200 g,sweets,3.69,EVERYDAY,false,1,
+Chocolate bar,sweets,1.79,EVERYDAY,false,2,
+Chocolate 200 g,sweets,4.29,EVERYDAY,false,1,
 Licorice 200 g,sweets,2.79,EVERYDAY,false,1,
 Ice cream tub 1 l,sweets,4.49,EVERYDAY,false,1,
 Ice cream cone,sweets,2.19,EVERYDAY,false,1,
