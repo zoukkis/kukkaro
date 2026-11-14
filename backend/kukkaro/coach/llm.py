@@ -131,14 +131,15 @@ def _run_google(cfg: dict, system: str, history: list[dict], message: str, tools
 
 
 _THINK = re.compile(r"<(thought|think|thinking)>.*?</\1>", re.DOTALL | re.IGNORECASE)
+_CHANNEL = re.compile(r"<\|channel\>.*?<channel\|>", re.DOTALL)  # Gemma 4's own reasoning channel tokens (vLLM)
 
 
 def strip_thinking(text: str) -> str:
-    """Some OpenAI-compatible servers return the model's reasoning inline (<thought>…</thought>).
-    The user must only see the answer; an unclosed block at the start is dropped too."""
-    text = _THINK.sub("", text)
-    m = re.match(r"\s*<(thought|think|thinking)>", text, re.IGNORECASE)
-    if m:
+    """Some OpenAI-compatible servers return the model's reasoning inline (<thought>…</thought>, or
+    Gemma 4's <|channel>thought…<channel|>). The user must only see the answer; an unclosed block at
+    the start is dropped too."""
+    text = _CHANNEL.sub("", _THINK.sub("", text))
+    if re.match(r"\s*(<(thought|think|thinking)>|<\|channel\>)", text, re.IGNORECASE):
         text = ""  # reasoning that never closed: there is no answer in it
     return text.strip()
 

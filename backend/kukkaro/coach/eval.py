@@ -63,7 +63,8 @@ def check(question: str, expected: frozenset[str] | None, out: dict) -> dict:
             "unverified_numbers": out["unverified_numbers"]}
 
 
-PAUSE_S = {"gemini": 0, "gemma": 8}  # Gemma on Google's API has a low per-minute quota (429s without a pause)
+# Gemma on Google's API (stage 1) has a low per-minute quota (429s without a pause); Verda (stage 2) has none.
+PAUSE_S = {"gemini": 0, "gemma": 0 if os.environ.get("GEMMA_BASE_URL") else 8}
 
 
 def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> dict:
@@ -74,7 +75,7 @@ def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> d
         if i and pause:
             time.sleep(pause)
         out = answer(customer_id, q, [], provider)
-        rows.append({**check(q, expected, out), "error": out.get("error")})
+        rows.append({**check(q, expected, out), "error": out.get("error"), "number_check": out.get("number_check")})
         r = rows[-1]
         print(f"  [{'PASS' if r['pass'] else 'FAIL'}] {r['seconds']:>5.1f}s {q}" + (f"  -> {r['reason']}" if r["reason"] else ""))
     answered = [r for r in rows if not r["error"]]
@@ -83,6 +84,8 @@ def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> d
             "passed": sum(r["pass"] for r in rows), "total": len(rows),
             "answered": len(answered), "passed_of_answered": sum(r["pass"] for r in answered),
             "errors": [r["error"][:80] for r in rows if r["error"]],
+            "retried": sum(r.get("number_check") == "retried" for r in rows),
+            "withheld": sum(r.get("number_check") == "withheld" for r in rows),
             "median_s": round(statistics.median(secs), 1), "max_s": round(max(secs), 1), "rows": rows}
 
 
@@ -106,7 +109,7 @@ def main() -> None:
     for r in reports:
         print(f"DECISIONS: eval {r['provider']} ({r['model']}, {r['host']}) on {r['customer_id']}: "
               f"{r['passed']}/{r['total']} pass; {r['passed_of_answered']}/{r['answered']} of answered; "
-              f"{len(r['errors'])} errors; median {r['median_s']} s, max {r['max_s']} s (answered only)")
+              f"{len(r['errors'])} errors; number check retried {r['retried']}, withheld {r['withheld']}; median {r['median_s']} s, max {r['max_s']} s (answered only)")
 
 
 if __name__ == "__main__":

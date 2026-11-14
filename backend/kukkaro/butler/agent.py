@@ -135,6 +135,34 @@ def _sources(results: list[dict]) -> list[dict]:
     return out
 
 
+SUGGESTION_THRESHOLD_PCT = 25
+_SUGGESTION_TASKS = {
+    # Bills have no merchant in the data, so say "utility bills", never "electricity".
+    "Utilities": ("utility bills", "My utility bills went up a lot last month. Why might that be, and how can I pay less?"),
+    "Housing": ("rent", "My rent went up. Is that allowed, and what can I do?"),
+}
+
+
+def suggestions(customer_id: str, threshold_pct: float = SUGGESTION_THRESHOLD_PCT) -> dict[str, Any]:
+    """Proactive Butler cards: recurring bills whose latest complete month rose at least
+    `threshold_pct` above their typical month (Revolut explains price moves in your stocks; Kukkaro
+    explains the ones in your bills). Numbers come from DATA's recurring_payments; each card carries
+    the task to send to the Butler if the user taps it."""
+    r = metrics.recurring_payments(customer_id)
+    cards = []
+    for s in r["recurring"]:
+        if s["category"] not in _SUGGESTION_TASKS or s["change_pct"] is None or s["change_pct"] < threshold_pct:
+            continue
+        what, task = _SUGGESTION_TASKS[s["category"]]
+        cards.append({"kind": "bill_went_up", "category": s["category"], "what": what,
+                      "title": f"Your {what} went up", "latest_month": s["latest_month"],
+                      "latest_month_eur": s["latest_month_eur"], "typical_monthly_eur": s["typical_monthly_eur"],
+                      "change_pct": s["change_pct"], "task": task,
+                      "source": f"your bank data, {s['latest_month']} vs the 3 months before"})
+    cards.sort(key=lambda c: c["change_pct"], reverse=True)
+    return {"customer_id": customer_id, "threshold_pct": threshold_pct, "suggestions": cards}
+
+
 ANSWER_CACHE_MAX_AGE_H = 24
 
 
