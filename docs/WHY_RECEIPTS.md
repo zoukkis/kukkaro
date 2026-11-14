@@ -47,6 +47,8 @@ what you can see.**
 - **Stays in Europe.** EU privacy mode: open-weight Gemma on Verda, no third-party API.
 - **Synthetic in this demo.** All receipt data here is generated and labelled. Production would read
   the receipt archive S-mobiili already has, with consent.
+  The full production data path (bank data or PSD2, and the `ReceiptProvider` swap) is in
+  `docs/PRODUCTION_PATH.md`.
 
 ## How S-Bank could validate it in a pilot
 Opt-in rate after the preview · share of users who act on a receipt-based suggestion · change in
