@@ -3,7 +3,7 @@
 // To switch to the real API: set VITE_USE_MOCK=false in web/.env.local. Nothing else changes.
 
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
-export const CUSTOMER_ID: string = import.meta.env.VITE_CUSTOMER_ID ?? "DEMO";
+export const CUSTOMER_ID: string = import.meta.env.VITE_CUSTOMER_ID ?? "CUST02979";
 const BASE = "/api";
 
 // ---------- Types (shared contract §5.2 / §5.4) ----------
@@ -47,11 +47,12 @@ export interface Transaction {
   tx_date: string;
   tx_timestamp: string;
   category: string;
+  subcategory?: string | null; // from MCC, e.g. "Taxis" inside Transportation (DATA)
   tx_amount_eur: number; // negative = money out
   balance_after_eur: number;
   transaction_type: string;
-  merchant_id: string;
-  mcc_code: string;
+  merchant_id: string | null; // blank on bills, income, transfers and 5% of purchases
+  mcc_code: string | null;
   basket: Basket;
 }
 
@@ -123,73 +124,78 @@ const real = {
 };
 
 // ---------- Mock data (delete once the backend is live) ----------
+// Shaped like the demo customer DATA picked (CUST02979, Sep 2026, see docs/DECISIONS.md).
+// Values are illustrative except where DECISIONS.md states them (groceries, taxis, safe to spend).
 
-const MOCK_MONTH = "2026-10";
+const MOCK_MONTH = "2026-09";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const mockSummary: Summary = {
   customer_id: CUSTOMER_ID,
   month: MOCK_MONTH,
-  income_eur: 2850.0,
-  spending_eur: 2214.6,
-  balance_eur: 1342.18,
+  income_eur: 2640.0,
+  spending_eur: 2380.4,
+  balance_eur: 612.3,
   baskets: [
-    { basket: "MANDATORY_REGULAR", total_eur: 1388.4, share_pct: 62.7, tx_count: 14 },
-    { basket: "MANDATORY_IRREGULAR", total_eur: 289.0, share_pct: 13.0, tx_count: 2 },
-    { basket: "EVERYDAY", total_eur: 537.2, share_pct: 24.3, tx_count: 31 },
+    { basket: "MANDATORY_REGULAR", total_eur: 1526.6, share_pct: 64.1, tx_count: 13 },
+    { basket: "MANDATORY_IRREGULAR", total_eur: 139.7, share_pct: 5.9, tx_count: 2 },
+    { basket: "EVERYDAY", total_eur: 714.1, share_pct: 30.0, tx_count: 24 },
   ],
   top_categories: [
-    { category: "Rent", basket: "MANDATORY_REGULAR", total_eur: 890.0 },
-    { category: "Groceries", basket: "MANDATORY_REGULAR", total_eur: 412.0 },
-    { category: "Restaurants & takeaway", basket: "EVERYDAY", total_eur: 186.4 },
-    { category: "Car service", basket: "MANDATORY_IRREGULAR", total_eur: 249.0 },
-    { category: "Taxis", basket: "EVERYDAY", total_eur: 98.5 },
+    { category: "Housing", basket: "MANDATORY_REGULAR", total_eur: 760.0 },
+    { category: "Groceries", basket: "MANDATORY_REGULAR", total_eur: 611.16 },
+    { category: "Restaurants", basket: "EVERYDAY", total_eur: 284.3 },
+    { category: "Utilities", basket: "MANDATORY_REGULAR", total_eur: 144.73 },
+    { category: "Entertainment", basket: "EVERYDAY", total_eur: 132.0 },
   ],
 };
 
-const mockTx: Transaction[] = (
-  [
-    ["2026-10-01", "Rent", -890.0, "MANDATORY_REGULAR", "M0101", "6513"],
-    ["2026-10-02", "Electricity", -48.9, "MANDATORY_REGULAR", "M0207", "4900"],
-    ["2026-10-03", "Groceries", -47.1, "MANDATORY_REGULAR", "M0311", "5411"],
-    ["2026-10-04", "Coffee", -4.6, "EVERYDAY", "M0420", "5814"],
-    ["2026-10-05", "Takeaway", -23.9, "EVERYDAY", "M0433", "5812"],
-    ["2026-10-07", "Mobile subscription", -19.9, "MANDATORY_REGULAR", "M0505", "4814"],
-    ["2026-10-08", "Taxi", -31.2, "EVERYDAY", "M0612", "4121"],
-    ["2026-10-09", "Groceries", -62.35, "MANDATORY_REGULAR", "M0311", "5411"],
-    ["2026-10-11", "Car service", -249.0, "MANDATORY_IRREGULAR", "M0702", "7538"],
-    ["2026-10-12", "Coffee", -5.2, "EVERYDAY", "M0420", "5814"],
-    ["2026-10-14", "Pharmacy", -40.0, "MANDATORY_IRREGULAR", "M0811", "5912"],
-    ["2026-10-15", "Home insurance", -21.5, "MANDATORY_REGULAR", "M0909", "6300"],
-    ["2026-10-16", "Takeaway", -27.4, "EVERYDAY", "M0433", "5812"],
-    ["2026-10-18", "Taxi", -24.8, "EVERYDAY", "M0612", "4121"],
-    ["2026-10-20", "Streaming", -12.99, "MANDATORY_REGULAR", "M1003", "4899"],
-    ["2026-10-22", "Kiosk snacks", -8.7, "EVERYDAY", "M1101", "5499"],
-    ["2026-10-25", "Salary", 2850.0, "INCOME", "M0001", "0000"],
-  ] as const
-).map(([date, category, amount, basket, merchant, mcc], i) => ({
-  tx_id: `${CUSTOMER_ID}-${1100 + i}`,
-  customer_id: CUSTOMER_ID,
-  bank_account_id: "ACC-MOCK-1",
-  tx_date: date,
-  tx_timestamp: `${date}T12:00:00`,
-  category,
-  tx_amount_eur: amount,
-  balance_after_eur: 0,
-  transaction_type: amount > 0 ? "CREDIT" : "CARD_PAYMENT",
-  merchant_id: merchant,
-  mcc_code: mcc,
-  basket,
-}));
+type Row = readonly [string, string, string | null, number, Basket, string, string | null, string | null];
+const rows: Row[] = [
+  ["2026-09-01", "Housing", null, -760.0, "MANDATORY_REGULAR", "housing_payment", null, null],
+  ["2026-09-02", "Groceries", "Grocery stores", -72.4, "MANDATORY_REGULAR", "purchase", "MRC-GRO-0035", "5411"],
+  ["2026-09-03", "Restaurants", "Fast food", -14.9, "EVERYDAY", "purchase", "MRC-RES-0112", "5814"],
+  ["2026-09-05", "Utilities", null, -144.73, "MANDATORY_REGULAR", "utilities_payment", null, null],
+  ["2026-09-06", "Groceries", "Grocery stores", -88.15, "MANDATORY_REGULAR", "purchase", "MRC-GRO-0035", "5411"],
+  ["2026-09-07", "Transportation", "Taxis", -31.2, "EVERYDAY", "purchase", "MRC-TRA-0041", "4121"],
+  ["2026-09-09", "Entertainment", "Cinema", -24.0, "EVERYDAY", "purchase", "MRC-ENT-0007", "7832"],
+  ["2026-09-10", "Groceries", "Convenience / specialty", -41.3, "MANDATORY_REGULAR", "purchase", "MRC-GRO-0102", "5499"],
+  ["2026-09-12", "Health", "Pharmacy", -39.7, "MANDATORY_IRREGULAR", "purchase", "MRC-HEA-0019", "5912"],
+  ["2026-09-13", "Restaurants", "Bars", -46.5, "EVERYDAY", "purchase", "MRC-RES-0090", "5813"],
+  ["2026-09-15", "Salary", null, 2640.0, "INCOME", "salary", null, null],
+  ["2026-09-16", "Groceries", "Grocery stores", -95.6, "MANDATORY_REGULAR", "purchase", "MRC-GRO-0035", "5411"],
+  ["2026-09-18", "Home & Tech", "Electronics", -100.0, "MANDATORY_IRREGULAR", "purchase", "MRC-HOM-0044", "5732"],
+  ["2026-09-19", "Transportation", "Public transport", -63.9, "MANDATORY_REGULAR", "purchase", "MRC-TRA-0003", "4111"],
+  ["2026-09-20", "Restaurants", "Eating places", -38.4, "EVERYDAY", "purchase", "MRC-RES-0151", "5812"],
+  ["2026-09-23", "Groceries", "Grocery stores", -79.2, "MANDATORY_REGULAR", "purchase", "MRC-GRO-0035", "5411"],
+  ["2026-09-26", "Lifestyle", "Clothing", -89.9, "EVERYDAY", "purchase", "MRC-LIF-0060", "5651"],
+  ["2026-09-28", "Invest Deposit", null, -150.0, "TRANSFER", "investment_deposit", null, null],
+];
+const mockTx: Transaction[] = rows.map(
+  ([date, category, subcategory, amount, basket, type, merchant, mcc], i) => ({
+    tx_id: `${CUSTOMER_ID}-${640 + i}`,
+    customer_id: CUSTOMER_ID,
+    bank_account_id: "ACC-MOCK-1",
+    tx_date: date,
+    tx_timestamp: `${date}T12:00:00`,
+    category,
+    subcategory,
+    tx_amount_eur: amount,
+    balance_after_eur: 0,
+    transaction_type: type,
+    merchant_id: merchant,
+    mcc_code: mcc,
+    basket,
+  }),
+);
 
 const mockSafe: SafeToSpend = {
-  amount_eur: 142.5,
-  until_date: "2026-11-15",
+  amount_eur: 127.05,
+  until_date: "2026-10-15",
   explanation_inputs: {
-    balance_eur: 1342.18,
-    upcoming_regular_bills_eur: 1098.9,
-    irregular_buffer_eur: 100.78,
-    days_left: 6,
+    balance_eur: 612.3,
+    regular_essentials_still_expected_eur: 485.25,
+    days_until_salary: 15,
   },
 };
 
@@ -202,55 +208,54 @@ const fig = (label: string, value: number, unit: Figure["unit"], source: string)
 
 function mockChat(message: string): ChatResponse {
   const m = message.toLowerCase();
-  const src = `Oct 2026, all baskets`;
+  const src = `Sep 2026, all baskets`;
   if (m.includes("where") || m.includes("go")) {
     return {
       answer:
-        "In October you spent €2,214.60. Most of it (63%) went to 🏠 Regular essentials, mainly rent (€890) and groceries (€412). ☕ Everyday spending was €537.20, with takeaway and taxis as the biggest items.",
+        "In September you spent €2,380.40. Most of it (64%) went to 🏠 Regular essentials, mainly rent (€760) and groceries (€611.16 over 9 trips). ☕ Everyday spending was €714.10, led by restaurants and bars.",
       tool_calls: [{ name: "spending_summary", args: { month: MOCK_MONTH } }],
       figures: [
-        fig("Total spending", 2214.6, "EUR", src),
-        fig("🏠 Regular essentials", 1388.4, "EUR", "Oct 2026, MANDATORY_REGULAR"),
-        fig("☕ Everyday spending", 537.2, "EUR", "Oct 2026, EVERYDAY"),
+        fig("Total spending", 2380.4, "EUR", src),
+        fig("🏠 Regular essentials", 1526.6, "EUR", "Sep 2026, MANDATORY_REGULAR"),
+        fig("☕ Everyday spending", 714.1, "EUR", "Sep 2026, EVERYDAY"),
       ],
     };
   }
   if (m.includes("spender") || m.includes("kind")) {
     return {
       answer:
-        "You're a steady planner with a few small leaks: your bills are regular and on time, but about a quarter of your spending is everyday stuff like takeaway, taxis and coffee. Those small buys added up to €537 last month.",
-      tool_calls: [
-        { name: "spending_summary", args: { month: MOCK_MONTH } },
-        { name: "spender_profile", args: { months: 3 } },
-      ],
+        "On card data alone you look fairly average for your age: 30% of your spending is ☕ Everyday spending, versus a 26.7% median for people aged 18–24. But groceries are your biggest category, and card data can't see what's inside those trips.",
+      tool_calls: [{ name: "spender_profile", args: {} }],
       figures: [
-        fig("Everyday share of spending", 24.3, "%", "Oct 2026, EVERYDAY"),
-        fig("Everyday purchases", 31, "count", "Oct 2026, EVERYDAY"),
+        fig("Your everyday share", 30.0, "%", "Last complete months, EVERYDAY"),
+        fig("Median everyday share, ages 18–24", 26.7, "%", "Peer customers, EVERYDAY"),
       ],
     };
   }
   if (m.includes("safe") || m.includes("week")) {
     return {
       answer:
-        "You can safely spend about €142.50 until 15 Nov. That's your balance minus the bills still coming this month and a small buffer for surprises.",
+        "You can safely spend about €127.05 this week. That's your balance minus the regular essentials still expected before your next salary (around 15 Oct).",
       tool_calls: [{ name: "safe_to_spend", args: {} }],
       figures: [
-        fig("Safe to spend", 142.5, "EUR", "Now → 15 Nov 2026"),
-        fig("Upcoming regular bills", 1098.9, "EUR", "Nov 2026, MANDATORY_REGULAR"),
+        fig("Safe to spend", 127.05, "EUR", "30 Sep → 15 Oct 2026"),
+        fig("Regular essentials still expected", 485.25, "EUR", "Typical month, MANDATORY_REGULAR"),
       ],
     };
   }
   if (m.includes("save")) {
     return {
       answer:
-        "Your biggest lever is ☕ Everyday spending. Cutting takeaway by half would save about €93 a month, or €1,118 a year. Taxis are next: €98.50 last month.",
+        "Your biggest lever is ☕ Everyday spending. Cutting restaurants by half would save about €142 a month, or €1,706 a year. Taxis are another: €90.76 in August. Your utilities also jumped to €144.73 (usually about €65.70), worth a check.",
       tool_calls: [
         { name: "spending_summary", args: { month: MOCK_MONTH } },
-        { name: "what_if", args: { category_or_item: "Restaurants & takeaway", change_pct: -50 } },
+        { name: "what_if", args: { category_or_item: "Restaurants", change_pct: -50 } },
+        { name: "recurring_payments", args: {} },
       ],
       figures: [
-        fig("Saving per month", 93.2, "EUR", "What-if on Oct 2026 takeaway"),
-        fig("Saving per year", 1118.4, "EUR", "What-if on Oct 2026 takeaway"),
+        fig("Saving per month", 142.15, "EUR", "What-if on Restaurants, −50%"),
+        fig("Saving per year", 1705.8, "EUR", "What-if on Restaurants, −50%"),
+        fig("Utilities change", 120.3, "%", "Sep 2026 vs typical month"),
       ],
     };
   }

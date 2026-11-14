@@ -134,7 +134,7 @@ function BasketTransactions({
           {page.items.map((t) => (
             <li key={t.tx_id}>
               <span className="tx-main">
-                <strong>{t.category}</strong>
+                <strong>{t.subcategory ?? t.category}</strong>
                 <span className="muted">{formatDate(t.tx_date)}</span>
               </span>
               <strong className={t.tx_amount_eur < 0 ? "out" : "in"}>{formatEur(t.tx_amount_eur)}</strong>
