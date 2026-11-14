@@ -58,3 +58,17 @@ A **"With receipts / Without receipts" toggle** on the same month for the same c
 - With: "Groceries €412: €305 essentials, **€107 everyday spending** (energy drinks €38, pastries
   €29, candy €22…)" plus a concrete what-if.
 Same data, same coach: the only difference is the receipts. That *is* the reason.
+
+## Prior art (checked 14 Nov 2026): proven pieces, missing coaching
+- **ICA (Sweden), the closest analogue:** a grocery chain with its own bank (ICA Banken). In 2018
+  it launched the ICA Spara app showing customers' grocery purchases, bills and subscriptions in one
+  place, plus the climate impact of their food purchases.
+- **Walmart OnePay (US):** a retailer-backed money app (banking, cards, cash-back, BNPL), ~6M monthly
+  users. Focus is rewards and credit, not coaching.
+- **Itemised receipts inside bank apps:** Nordea Wallet in Finland with ReceiptHero (first major
+  Nordic bank partnership), Barclays with Flux (UK), NAB with Slyp (Australia). They *show* the
+  receipt next to the card purchase.
+- **The gap Kukkaro fills:** these products display receipts or give rewards; none turn line items
+  into coaching (baskets, everyday leaks, what-if, store-brand savings, safe-to-spend). And S-Group
+  already owns both the bank and the receipts, so it needs no third-party receipt matching.
+- Pitch line: "Receipts in bank apps are proven (Nordea, Barclays). Nobody coaches with them yet."
