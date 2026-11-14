@@ -208,3 +208,17 @@ def test_openai_thinking_only_reply_gets_one_nudge(monkeypatch):
     r = llm.run("sys", [], "Taxis?", SPECS, lambda n, a: {}, "gemma")
     assert r.text == "You spent €90.76 on taxis." and len(sent) == 2
     assert sent[1]["messages"][-1]["role"] == "user" and "No reasoning" in sent[1]["messages"][-1]["content"]
+
+
+def test_plain_text_answers():
+    assert llm.plain("You can spend **€127.05** this week.\n### Next\n- __Skip__ one taxi") == \
+        "You can spend €127.05 this week.\nNext\n- Skip one taxi"
+
+
+def test_safe_to_spend_figures_use_the_payday_window():
+    calls = [{"name": "safe_to_spend", "args": {}, "result": {
+        "today": "2026-09-30", "until_date": "2026-10-15", "this_week_eur": 127.05,
+        "explanation_inputs": {"balance_eur": 1259.49,
+                               "typical_month_based_on": {"start": "2026-07-01", "end": "2026-09-30", "months": 3}}}}]
+    f = {x["label"]: x["source"] for x in numbers.figures("Balance €1,259.49; this week €127.05.", calls)}
+    assert f == {"this week": "2026-09-30 to 2026-10-15", "balance": "2026-09-30 to 2026-10-15"}

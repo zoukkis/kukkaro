@@ -75,7 +75,9 @@ def _unit(key: str) -> str | None:
 
 
 def _period(d: dict) -> str | None:
-    for k in ("period", "based_on", "typical_month_based_on"):
+    # Not "typical_month_based_on": that window only explains the typical month, while the other
+    # safe-to-spend inputs (balance, days, still expected) belong to today → next salary.
+    for k in ("period", "based_on"):
         p = d.get(k)
         if isinstance(p, dict) and p.get("start"):
             return f"{p['start']} to {p['end']}"

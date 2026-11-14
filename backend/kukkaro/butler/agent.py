@@ -197,7 +197,7 @@ def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> d
                 "seconds": round(time.monotonic() - t0, 2), "error": ans_run.error}
 
     valid = {s["n"] for s in sources}
-    answer = _soften_eligibility(_CITE.sub(lambda m: m.group(0) if int(m.group(1)) in valid else "", out["answer"])).strip()
+    answer = llm.plain(_soften_eligibility(_CITE.sub(lambda m: m.group(0) if int(m.group(1)) in valid else "", out["answer"])))
     cited = {int(n) for n in _CITE.findall(answer)}
     all_text = " ".join(s["text"] + " " + s["url"] for s in sources)
 
@@ -227,7 +227,7 @@ def _run_live(customer_id: str, task: str, provider: str | None, t0: float) -> d
         "answer": answer,
         "sources": [{"n": s["n"], "title": s["title"], "url": s["url"], "published_date": s["published_date"],
                      "cited": s["n"] in cited} for s in sources],
-        "next_steps": [_soften_eligibility(x) for x in (out.get("next_steps") or [])][:5],
+        "next_steps": [llm.plain(_soften_eligibility(x)) for x in (out.get("next_steps") or [])][:5],
         "draft": draft,
         "unverified_numbers": unverified,
         "model": ans_run.model,
