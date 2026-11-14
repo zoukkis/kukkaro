@@ -28,7 +28,7 @@ def test_receipt_endpoint_logic(data_env):
     assert len(split_ids) == 2
     r = provider.get_receipt(split_ids[0])
     assert r is not None and r.synthetic
-    housing = metrics.transactions_page("C1", basket="MANDATORY_REGULAR", month="2026-09")["transactions"]
+    housing = metrics.transactions_page("C1", basket="MANDATORY_REGULAR", month="2026-09")["items"]
     rent = next(t for t in housing if t["category"] == "Housing")
     assert provider.get_receipt(rent["tx_id"]) is None
 
