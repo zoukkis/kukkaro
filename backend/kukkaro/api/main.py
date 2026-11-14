@@ -32,7 +32,7 @@ from kukkaro.data.settings import REPO_ROOT
 
 log = logging.getLogger("kukkaro.api")
 
-OPTIONAL_ROUTERS = ("kukkaro.coach.router", "kukkaro.receipts.router", "kukkaro.butler.router")
+OPTIONAL_ROUTERS = ("kukkaro.coach.router", "kukkaro.receipts.router", "kukkaro.butler.router", "kukkaro.orders.router")
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173", "http://127.0.0.1:4173"]
 state: dict = {"data_loaded": False, "routers": []}
 

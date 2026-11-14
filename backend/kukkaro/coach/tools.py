@@ -126,8 +126,20 @@ RECEIPT_SPECS: list[ToolSpec] = [
              "save per month and per year (last 3 complete months), with the top swaps.",
              {"type": "object", "properties": {}}),
 ]
+ORDER_SPEC = ToolSpec(
+    "plan_grocery_order",
+    "Concept demo: prepare a week of the customer's usual groceries from their synthetic receipts, for delivery by robot, "
+    "with the order total and whether it fits what is safe to spend this week. Treats (everyday items) are left out unless "
+    "include_treats is true. It only prepares the order: the customer reviews and approves it in the app; nothing is "
+    "bought or paid. Use when the user asks you to buy, order or shop groceries for them.",
+    {"type": "object", "properties": {"include_treats": {"type": "boolean", "description": "Add the usual treats (energy drinks, snacks) back in"}}},
+)
+
 if receipts is not None:
     SPECS += RECEIPT_SPECS
+    from kukkaro.orders import planner as _orders
+    SPECS.append(ORDER_SPEC)
+    _FUNCS["plan_grocery_order"] = lambda cid, a: _orders.plan_grocery_order(cid, bool(a.get("include_treats", False)))
     _FUNCS.update({
         "leak_items": lambda cid, a: receipts.leak_items(cid, a["start"], a["end"]),
         "item_spend": lambda cid, a: item_spend(cid, a["item"], a["start"], a["end"]),
