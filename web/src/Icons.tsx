@@ -49,9 +49,9 @@ export const IconTrend = ({ size = 18 }: P) =>
 // The brand mark: a small coin purse ("kukkaro" is Finnish for purse).
 export const Mark = ({ size = 28 }: P) => (
   <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden focusable="false">
-    <rect width="64" height="64" rx="18" fill="var(--forest)" />
-    <path d="M20 26c0-6 5-10 12-10s12 4 12 10" fill="none" stroke="var(--paper)" strokeWidth="4" strokeLinecap="round" />
-    <rect x="14" y="26" width="36" height="24" rx="8" fill="var(--paper)" />
-    <circle cx="32" cy="38" r="4" fill="var(--forest)" />
+    <rect width="64" height="64" rx="18" fill="var(--mark-bg)" />
+    <path d="M20 26c0-6 5-10 12-10s12 4 12 10" fill="none" stroke="var(--mark-fg)" strokeWidth="4" strokeLinecap="round" />
+    <rect x="14" y="26" width="36" height="24" rx="8" fill="var(--mark-fg)" />
+    <circle cx="32" cy="38" r="4" fill="var(--mark-bg)" />
   </svg>
 );

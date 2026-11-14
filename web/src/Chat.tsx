@@ -59,7 +59,7 @@ export default function Chat() {
       <div className="messages">
         {messages.length === 0 && (
           <div className="welcome">
-            <p className="eyebrow rise" style={stagger(0)}>Your money coach</p>
+            <p className="eyebrow mono rise" style={stagger(0)}>Your money coach</p>
             <h1 className="display rise" style={stagger(1)}>
               Ask your <em>money.</em>
             </h1>
@@ -168,7 +168,7 @@ function AnswerMeta({ res }: { res: ChatResponse }) {
 function HowIGotThis({ res }: { res: ChatResponse }) {
   if (res.tool_calls.length === 0 && res.figures.length === 0) return null;
   return (
-    <details className="how">
+    <details className="how exa">
       <summary>
         How I got this
         {res.figures.length > 0 && <span className="count">{res.figures.length}</span>}
