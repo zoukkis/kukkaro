@@ -41,7 +41,9 @@ exact numbers from DATA and RECEIPTS, and the LLM explains them kindly and brief
    - No investment, loan or product recommendations; no moving money.
 5. **`router.py`**: `POST /api/chat` per §5.4, returning `tool_calls` (name + args) and `figures`
    (the exact numbers used) so the UI can show "how I got this".
-6. **Eval script** `coach/eval.py`: 15 fixed questions for `DEMO_CUSTOMER_ID` (taxis last month,
+6. **Eval script** `coach/eval.py`: 15 fixed questions for `DEMO_CUSTOMER_ID`. The first four are
+   S-Bank's own, verbatim: "Where did my money go?", "What kind of spender am I?", "What can I
+   safely spend this week?", "How could I save more?". Then others (taxis last month,
    what kind of spender am I, safe to spend this week, halve energy drinks, store-brand savings…).
    Check that every number in each answer appears in the tool outputs. Run it with both providers
    and log the results in DECISIONS.md. This is the evidence for "Gemini vs. Gemma" in the pitch.

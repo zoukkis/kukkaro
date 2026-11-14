@@ -8,6 +8,8 @@ summary we post to their Discord is built from this file. Append, never rewrite.
 - 2026-11-14 00:30 · team · LLM never computes numbers; deterministic tools only · trust and correctness in a finance app
 - 2026-11-14 00:30 · team · Synthetic receipt layer behind a `ReceiptProvider` interface · the dataset has no line items; the real S-mobiili archive would plug in later
 
+- 2026-11-14 11:40 · Konsta · S-Bank presenter liked the synthetic receipt idea; brief slides add 4 must-answer questions and basket labels (now in AGENTS.md) · direct sponsor feedback
+
 ## Requests between workstreams
 (Format: `from → to · what is needed · status`)
 

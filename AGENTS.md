@@ -16,6 +16,13 @@ can be split into essentials vs. leaks at product level. A second feature, **Kuk
 the **Exa** search API to find money the user is missing (benefits, better deals, unfair bills),
 always with sources.
 
+### S-Bank's brief (from their slides): these must work flawlessly
+"Ask your money": **Where did my money go? · What kind of spender am I? · What can I safely spend
+this week? · How could I save more?** Show the baskets with S-Bank's own labels: 🏠 **Regular
+essentials** (`MANDATORY_REGULAR`), 🔧 **Unexpected necessities** (`MANDATORY_IRREGULAR`),
+☕ **Everyday spending** (`EVERYDAY`). Users must be able to explore freely (not just fixed charts),
+enriched with open data and benchmarks. The S-Bank presenter liked the receipt idea (14 Nov).
+
 ## 2. Where we compete (each needs visible proof in the demo)
 
 | Submission | Type | What judges look for |

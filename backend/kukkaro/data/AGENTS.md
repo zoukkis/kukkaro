@@ -6,6 +6,14 @@ and `data/README.md`.
 ## Your job
 Turn S-Bank's synthetic CSVs into fast, correct numbers that every other workstream can trust.
 
+## Facts confirmed by S-Bank's data dictionary
+- `tx_amount_eur` is signed: **negative = money out, positive = money in**.
+- Transfers have `merchant_id` and `mcc_code` equal to **"." or blank**: convert both to NULL.
+- `customer_postal_code` must be read as **text** (leading zeros matter, e.g. "00990").
+- Example row: `CUST00001, ACC000001, 2024-10-05 17:51:20, Groceries, -32.51, 3080.70, purchase,
+  MRC-GRO-0035, 5411`. `transaction_type` examples: "purchase", "housing payment".
+- Still profile everything (DATA_PROFILE.md): these are examples, not the full lists.
+
 ## Deliverables (in order)
 1. **`prepare.py`** (CLI: `python -m kukkaro.data.prepare`): reads `data/raw/*.csv` with
    `encoding="utf-8-sig"`, converts to Parquet in `data/processed/`, assigns `tx_id`

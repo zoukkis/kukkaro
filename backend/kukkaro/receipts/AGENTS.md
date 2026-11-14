@@ -24,7 +24,7 @@ real receipt archive. That swap is the point of the provider interface.
    for Finland in 2026. Mark leak items (`energy drink`, `candy`, `pastry`, `chips`, `coffee to go`…)
    as `EVERYDAY`; staples as `MANDATORY_REGULAR`. Include store-brand twins for ~30 common items.
 4. **`generator.py`**: `generate(tx_row, persona) -> Receipt`
-   - Only for grocery transactions (find the right `category`/`mcc_code` in `docs/DATA_PROFILE.md`, e.g. MCC 5411).
+   - Only for grocery transactions (`category` "Groceries" / MCC 5411, confirm in `docs/DATA_PROFILE.md`).
    - **Deterministic**: seed the RNG with `tx_id`, so the same transaction always gets the same receipt.
    - **Persona-consistent**: `persona = make_persona(customer_id, age)`, seeded by `customer_id`,
      fixes stable habits (e.g. buys energy drinks 3×/week, prefers oat milk, buys store brand or

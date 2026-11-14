@@ -7,6 +7,12 @@ This feature is the **Exa** submission ("The Internet Butler"), so it must work 
 Use of Exa for info a model can't know from training data · usefulness to a specific group ·
 clarity of sources · originality · works on live queries, including the judges' own.
 
+## Positioning (use in pitch and README)
+Revolut is an Exa customer: its Wealth & Trading AI team benchmarked search providers for agentic
+workflows and picked Exa. Revolut's in-app assistant AIR (launched Apr 2026) covers spending,
+search and card actions, but reviewers found its savings advice generic. Kukkaro's angle:
+specific drivers from receipts, plus a Butler that brings in current official information with sources.
+
 ## Deliverables (in order)
 1. **`exa_client.py`**: thin wrapper over the Exa Python SDK (`EXA_API_KEY`). Use Search plus
    Contents (highlights or summaries). Prefer official domains for Finnish topics (e.g. `kela.fi`,

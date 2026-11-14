@@ -39,7 +39,7 @@ a milestone before switching.
 - [ ] Everyone claims credits (Developer Tools and Assets page): Gemini (one form per team),
       Verda €200 (each person, redeemed into the shared "Kukkaro" Verda project), Exa $50. A Hugging Face account with the Gemma licence accepted (for self-hosting Gemma on Verda).
 - [ ] Create `.env` locally from `.env.example`. Share keys privately, **never in Git or public Discord**.
-- [ ] Ask S-Bank's mentors (Calle Holmberg, Chief Innovation Officer): *"OK to add synthetic
+- [x] Ask S-Bank's mentors (14 Nov: they like the receipt idea) (Calle Holmberg, Chief Innovation Officer): *"OK to add synthetic
       receipt line items on top of your dataset?"* Log the answer in DECISIONS.md.
 - [ ] Ask the Info Team on Discord: can the same tech challenges be ticked on both submissions?
       Does each submission need its own video?

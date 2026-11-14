@@ -13,9 +13,12 @@ that, no state library: React state plus `fetch` is enough. Design for a **390 �
 first; the desktop view can just center the phone-width layout.
 
 ## Screens (in priority order; ship 1–3 before touching 4–6)
-1. **Chat**: message list, input, suggested question chips. Each answer has a small "How I got this"
+1. **Chat**: message list, input, suggested question chips. The first four chips are S-Bank's
+   brief questions: "Where did my money go?", "What kind of spender am I?", "What can I safely
+   spend this week?", "How could I save more?". Each answer has a small "How I got this"
    expander showing `tool_calls` and `figures` from `/api/chat`.
-2. **Baskets overview**: this month's spending in the three baskets (one clear chart, big numbers,
+2. **Baskets overview**: this month's spending in the three baskets, labelled exactly 🏠 Regular
+   essentials · 🔧 Unexpected necessities · ☕ Everyday spending (one clear chart, big numbers,
    plain labels), a "safe to spend this week" card, tap a basket to see its transactions.
 3. **Receipt view**: tap a grocery transaction → items coloured by basket, leak items highlighted,
    a visible **"Synthetic example receipt"** badge. This screen sells the receipts idea; make it beautiful.
