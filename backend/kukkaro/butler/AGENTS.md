@@ -27,8 +27,11 @@ specific drivers from receipts, plus a Butler that brings in current official in
      The user approves; the agent never sends or submits anything.
 3. **Three demo tasks that must work reliably:**
    - "Am I possibly eligible for Kela housing allowance?" (uses rent + income pattern + age)
-   - "My rent went up. Is that allowed, and what can I do?"
-   - "Am I overpaying for electricity / phone / subscriptions?" (uses recurring payments)
+   - "My rent went up. Is that allowed, and what can I do?" (general rights question: the data has
+     no real rent rises, see docs/DATA_PROFILE.md, so answer from sources, not from the user's data)
+   - "Am I overpaying for electricity?" (the data has no subscriptions and utilities have no merchant;
+     use `recurring_payments()` utilities `change_pct`, e.g. demo customer CUST02979: Sep 144.73 €
+     vs typical 65.70 €, +120%)
    It must also survive free-form questions from judges. Test 10 unseen phrasings.
 4. **`router.py`**: `POST /api/butler` per root AGENTS.md §5.4. COACH mounts it in `api/main.py`.
 
