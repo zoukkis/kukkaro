@@ -26,18 +26,45 @@ class ChatRequest(BaseModel):
     provider: Literal["gemini", "gemma"] | None = None
 
 
+WITHHELD_TEXT = ("I couldn't check every number in my answer against your data, so I won't guess. "
+                 "Try asking about a specific month, basket or category.")
+
+
 def answer(customer_id: str, message: str, history: list[dict], provider: str | None = None) -> dict:
-    """One coach answer. Shared by the route and eval.py."""
+    """One coach answer. Shared by the route and eval.py.
+
+    "The LLM never invents numbers" is enforced here, not only in the prompt: if the answer contains
+    a number that no tool produced, the model is asked once more (tools first); if the second answer
+    still has one, the answer is withheld and the user gets an honest message instead."""
     metrics.customer_profile(customer_id)  # 404 for an unknown customer before any LLM call
     today = metrics.get_today()
-    r = llm.run(system_prompt(today), history, message, SPECS, executor(customer_id), provider)
+    system, execute = system_prompt(today), executor(customer_id)
+    r = llm.run(system, history, message, SPECS, execute, provider)
     r.text = llm.plain(r.text)
+    unverified = numbers.unverified_numbers(r.text, r.tool_calls, today.isoformat()) if not r.error else []
+    first_seconds, retried, withheld = r.seconds, False, False
+    if unverified:
+        retried = True
+        nudge = (f"Your previous answer used numbers that did not come from a tool result ({', '.join(unverified)}). "
+                 f"Answer my question again: call the right tool first and use only numbers from its result. "
+                 f"My question was: {message}")
+        r2 = llm.run(system, history + [{"role": "user", "content": message}, {"role": "assistant", "content": r.text}],
+                     nudge, SPECS, execute, provider)
+        r2.text = llm.plain(r2.text)
+        unverified2 = numbers.unverified_numbers(r2.text, r2.tool_calls, today.isoformat()) if not r2.error else ["error"]
+        r2.seconds = round(first_seconds + r2.seconds, 2)
+        if not r2.error and not unverified2:
+            r, unverified = r2, []
+        else:
+            withheld = True
+            r.text, r.seconds = WITHHELD_TEXT, r2.seconds
     calls = [{"name": c["name"], "args": c["args"]} for c in r.tool_calls]
     return {
         "answer": r.text,
         "tool_calls": calls,
-        "figures": numbers.figures(r.text, r.tool_calls) if not r.error else [],
-        "unverified_numbers": numbers.unverified_numbers(r.text, r.tool_calls, today.isoformat()) if not r.error else [],
+        "figures": numbers.figures(r.text, r.tool_calls) if not (r.error or withheld) else [],
+        "unverified_numbers": unverified if not withheld else [],
+        "number_check": "withheld" if withheld else ("retried" if retried else "ok"),
         "model": r.model,
         "host": r.host,
         "provider": r.provider,

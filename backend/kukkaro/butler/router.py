@@ -18,3 +18,9 @@ class ButlerRequest(BaseModel):
 def butler(body: ButlerRequest) -> dict:
     """{answer, sources[{n, title, url, published_date, cited}], next_steps[], draft, ...}"""
     return agent.run(body.customer_id, body.task)
+
+
+@router.get("/customers/{customer_id}/butler/suggestions")
+def butler_suggestions(customer_id: str) -> dict:
+    """Proactive cards ("Your utility bills went up"), each with the Butler task to run on tap."""
+    return agent.suggestions(customer_id)

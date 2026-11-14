@@ -222,3 +222,42 @@ def test_safe_to_spend_figures_use_the_payday_window():
                                "typical_month_based_on": {"start": "2026-07-01", "end": "2026-09-30", "months": 3}}}}]
     f = {x["label"]: x["source"] for x in numbers.figures("Balance €1,259.49; this week €127.05.", calls)}
     assert f == {"this week": "2026-09-30 to 2026-10-15", "balance": "2026-09-30 to 2026-10-15"}
+
+
+def test_gemma_channel_tokens_are_stripped():
+    assert llm.strip_thinking("<|channel>thought\n<channel|>You spent €90.76 on taxis.") == "You spent €90.76 on taxis."
+    assert llm.strip_thinking("<|channel>thought: rules 120 words") == ""
+
+
+def _fake_runs(texts):
+    """llm.run stand-in: each call answers with the next text, using safe_to_spend's real result."""
+    calls = []
+
+    def fake_run(system, history, message, tools, execute, provider=None):
+        calls.append({"message": message, "history": history})
+        out = execute("safe_to_spend", {})
+        text = texts[len(calls) - 1]
+        r = llm.RunResult(text=text, model="fake", host="verda", provider="gemma")
+        if "{week}" in text:
+            r.text = text.format(week=out["this_week_eur"])
+            r.tool_calls = [{"name": "safe_to_spend", "args": {}, "result": out}]
+        return r
+    return fake_run, calls
+
+
+def test_invented_number_gets_one_retry(data_env, monkeypatch):
+    from kukkaro.coach import router
+    fake, calls = _fake_runs(["You can spend 74.50 € this week.", "You can spend €{week} this week."])
+    monkeypatch.setattr(llm, "run", fake)
+    out = router.answer("C1", "What can I safely spend this week?", [], "gemma")
+    assert out["answer"] == "You can spend €2836.4 this week." and out["number_check"] == "retried"
+    assert out["unverified_numbers"] == [] and "74.5" in calls[1]["message"]
+    assert calls[1]["history"][-1] == {"role": "assistant", "content": "You can spend 74.50 € this week."}
+
+
+def test_invented_numbers_twice_are_withheld(data_env, monkeypatch):
+    from kukkaro.coach import router
+    fake, _ = _fake_runs(["You can spend 74.50 € this week.", "Maybe 80 € then."])
+    monkeypatch.setattr(llm, "run", fake)
+    out = router.answer("C1", "What can I safely spend this week?", [], "gemma")
+    assert out["answer"] == router.WITHHELD_TEXT and out["number_check"] == "withheld" and out["figures"] == []

@@ -100,3 +100,26 @@ def test_route(data_env, fakes):
         assert r.status_code == 200 and r.json()["sources"][0]["url"].startswith("https://www.kela.fi")
         assert c.post("/api/butler", json={"customer_id": "NOPE", "task": "What is Kela?"}).status_code == 404
         assert c.post("/api/butler", json={"customer_id": "C1", "task": ""}).status_code == 422
+
+
+def test_suggestions_only_for_bills_that_rose(data_env, monkeypatch):
+    from kukkaro.data import metrics
+    fake = {"recurring": [
+        {"name": "Utilities", "category": "Utilities", "change_pct": 120.3, "latest_month": "2026-09", "latest_month_eur": 144.73, "typical_monthly_eur": 65.7},
+        {"name": "Housing", "category": "Housing", "change_pct": -0.7, "latest_month": "2026-09", "latest_month_eur": 607.12, "typical_monthly_eur": 611.56},
+        {"name": "Invest Deposit", "category": "Invest Deposit", "change_pct": 80.0, "latest_month": "2026-09", "latest_month_eur": 90.0, "typical_monthly_eur": 50.0},
+        {"name": "Groceries merchant X", "category": "Groceries", "change_pct": None, "latest_month": "2026-09", "latest_month_eur": 1.0, "typical_monthly_eur": 0.0}]}
+    monkeypatch.setattr(metrics, "recurring_payments", lambda cid: fake)
+    r = agent.suggestions("C1")
+    assert [c["category"] for c in r["suggestions"]] == ["Utilities"]          # savings transfers and falls are not cards
+    c = r["suggestions"][0]
+    assert (c["title"], c["change_pct"], c["latest_month_eur"], c["typical_monthly_eur"]) == ("Your utility bills went up", 120.3, 144.73, 65.7)
+    assert "electricity" not in c["title"].lower() and c["task"].startswith("My utility bills went up")
+
+
+def test_suggestions_route(data_env):
+    from kukkaro.api.main import app
+    with TestClient(app) as c:
+        r = c.get("/api/customers/C1/butler/suggestions")
+        assert r.status_code == 200 and r.json()["suggestions"] == []           # C1's bills are flat
+        assert c.get("/api/customers/NOPE/butler/suggestions").status_code == 404

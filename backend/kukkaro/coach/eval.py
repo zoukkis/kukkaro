@@ -63,7 +63,8 @@ def check(question: str, expected: frozenset[str] | None, out: dict) -> dict:
             "unverified_numbers": out["unverified_numbers"]}
 
 
-PAUSE_S = {"gemini": 0, "gemma": 8}  # Gemma on Google's API has a low per-minute quota (429s without a pause)
+# Gemma on Google's API (stage 1) has a low per-minute quota (429s without a pause); Verda (stage 2) has none.
+PAUSE_S = {"gemini": 0, "gemma": 0 if os.environ.get("GEMMA_BASE_URL") else 8}
 
 
 def run_eval(provider: str, customer_id: str, pause_s: float | None = None) -> dict:
