@@ -87,8 +87,25 @@ export interface ButlerResponse {
   next_steps: string[];
   draft?: { kind: string; to: string | null; subject: string; body: string; open_url: string | null; mailto: string | null } | null;
   model?: string;
+  cached?: boolean;
   error?: string;
 }
+
+// GET /customers/{id}/butler/suggestions: proactive "your bill went up" cards (numbers from DATA).
+export interface BillSuggestion {
+  kind: "bill_went_up";
+  category: string;
+  what: string; // "utility bills" | "rent"
+  title: string;
+  latest_month: string; // YYYY-MM
+  latest_month_eur: number;
+  typical_monthly_eur: number;
+  change_pct: number;
+  task: string; // send this to the Butler on tap
+  source: string;
+}
+
+export type Provider = "gemini" | "gemma";
 
 export interface Transaction {
   tx_id: string;
@@ -144,6 +161,9 @@ export interface ChatResponse {
   tool_calls: ToolCall[];
   figures: Figure[];
   model?: string;
+  host?: string; // "google" | "verda": "EU privacy mode" may only be shown when "verda"
+  provider?: Provider;
+  number_check?: "ok" | "retried" | "withheld";
 }
 
 // ---------- Real API ----------
@@ -183,10 +203,12 @@ const real = {
     http<ButlerResponse>(`/butler`, { method: "POST", body: JSON.stringify({ customer_id, task }) }),
   safeToSpend: (id: string) =>
     http<SafeToSpend>(`/customers/${encodeURIComponent(id)}/safe-to-spend`),
-  chat: (customer_id: string, message: string, history: ChatTurn[]) =>
+  suggestions: (id: string) =>
+    http<{ suggestions: BillSuggestion[] }>(`/customers/${encodeURIComponent(id)}/butler/suggestions`),
+  chat: (customer_id: string, message: string, history: ChatTurn[], provider?: Provider) =>
     http<ChatResponse>(`/chat`, {
       method: "POST",
-      body: JSON.stringify({ customer_id, message, history }),
+      body: JSON.stringify({ customer_id, message, history, ...(provider ? { provider } : {}) }),
     }),
 };
 
@@ -392,7 +414,29 @@ const mock: typeof real = {
     return { items: all.slice(offset, offset + limit), total: all.length, limit, offset };
   },
   safeToSpend: async () => (await wait(200), mockSafe),
-  chat: async (_id, message) => (await wait(900), { ...mockChat(message), model: "mock" }),
+  // Values as logged in docs/DECISIONS.md for the demo customer (utility bills, Sep 2026).
+  suggestions: async () => (
+    await wait(200),
+    {
+      suggestions: [
+        {
+          kind: "bill_went_up" as const,
+          category: "Utilities",
+          what: "utility bills",
+          title: "Your utility bills went up",
+          latest_month: MOCK_MONTH,
+          latest_month_eur: 144.73,
+          typical_monthly_eur: 65.7,
+          change_pct: 120.3,
+          task: "My utility bills went up a lot last month. Why might that be, and how can I pay less?",
+          source: "your bank data, 2026-09 vs the 3 months before",
+        },
+      ],
+    }
+  ),
+  chat: async (_id, message, _history, provider) => (
+    await wait(900), { ...mockChat(message), model: "mock", provider: provider ?? "gemini", host: "mock" }
+  ),
 };
 
 export const api = USE_MOCK ? mock : real;
