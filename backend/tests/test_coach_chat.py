@@ -305,3 +305,25 @@ def test_web_fact_numbers_in_finnish_format_are_allowed(data_env, monkeypatch):
     monkeypatch.setattr(llm, "run", fake_run)
     out = router.answer("C1", "Where can I buy cheap oat milk?", [])
     assert out["number_check"] == "ok" and out["fallback"] is False
+
+
+def test_openai_json_missing_keys_falls_back(monkeypatch):
+    """vLLM's JSON mode does not enforce the schema: a reply without the required keys must hand over to
+    the fallback model instead of crashing the Butler (the live demo returned 500 before this)."""
+    from types import SimpleNamespace as NS
+
+    class FakeCompletions:
+        def create(self, **kw):
+            return NS(choices=[NS(message=NS(content='{"response": "hi"}', tool_calls=None))])
+
+    monkeypatch.setenv("GEMMA_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setitem(llm._clients, "openai", NS(chat=NS(completions=FakeCompletions())))
+    schema = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
+    parsed, r = llm.complete_json("sys", "q", schema, "gemma")
+    assert parsed is None and "missing answer" in r.error
+
+    monkeypatch.setattr(llm, "_complete_json_one", lambda s, p, sc, prov: (
+        llm._complete_json_openai(llm.provider_config("gemma"), s, p, sc) if prov == "gemma"
+        else ({"answer": "ok"}, llm.RunResult(text="", model="gemini", host="google", provider="gemini"))))
+    parsed, r = llm.complete_json("sys", "q", schema, "gemma", "gemini")
+    assert parsed == {"answer": "ok"} and r.fallback_used

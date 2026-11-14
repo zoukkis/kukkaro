@@ -218,11 +218,14 @@ def _run_live(customer_id: str, task: str, t0: float, use_cache: bool = True) ->
                 "seconds": round(time.monotonic() - t0, 2), "error": ans_run.error}
 
     valid = {s["n"] for s in sources}
-    answer = llm.plain(_soften_eligibility(_CITE.sub(lambda m: m.group(0) if int(m.group(1)) in valid else "", out["answer"])))
+    answer = llm.plain(_soften_eligibility(_CITE.sub(lambda m: m.group(0) if int(m.group(1)) in valid else "",
+                                                     str(out.get("answer") or ""))))
     cited = {int(n) for n in _CITE.findall(answer)}
     all_text = " ".join(s["text"] + " " + s["url"] for s in sources) + " " + facts
 
-    draft = out.get("draft") or {}
+    draft = out.get("draft") if isinstance(out.get("draft"), dict) else {}
+    if not isinstance(out.get("next_steps"), list):
+        out["next_steps"] = []
     if draft.get("kind") in (None, "none") or not draft.get("body"):
         draft = None
     else:
@@ -248,7 +251,7 @@ def _run_live(customer_id: str, task: str, t0: float, use_cache: bool = True) ->
         "answer": answer,
         "sources": [{"n": s["n"], "title": s["title"], "url": s["url"], "published_date": s["published_date"],
                      "cited": s["n"] in cited} for s in sources],
-        "next_steps": [llm.plain(_soften_eligibility(x)) for x in (out.get("next_steps") or [])][:5],
+        "next_steps": [llm.plain(_soften_eligibility(str(x))) for x in (out.get("next_steps") or [])][:5],
         "draft": draft,
         "unverified_numbers": unverified,
         "model": ans_run.model,
