@@ -554,6 +554,49 @@ def recurring_payments(customer_id: str, today: date | str | None = None) -> dic
     }
 
 
+def merge_grocery_split(summary: dict[str, Any], split: dict[str, Any]) -> dict[str, Any]:
+    """The With-receipts view of a `spending_summary`: grocery spend that has a (synthetic) receipt
+    is moved out of Regular essentials into the baskets of its items. Total spending is unchanged.
+
+    `split` comes from RECEIPTS' `basket_split(customer_id, start, end)` for the same period:
+    {grocery_total_eur, without_receipt_eur, split: [{basket, total_eur}], top_leak_items: [...]}.
+    Raises DataError if the split does not add up to the card data to the cent.
+    Basket `transactions` stay card counts (one trip can span several baskets)."""
+    groceries = sum((Decimal(str(c["spent_eur"])) for c in summary["top_categories"]
+                     if c["name"] == "Groceries" and c["basket"] == Basket.MANDATORY_REGULAR.value), Decimal(0))
+    total = Decimal(str(split["grocery_total_eur"]))
+    without = Decimal(str(split["without_receipt_eur"]))
+    parts = {b: Decimal(0) for b in SPENDING}
+    for p in split["split"]:
+        if p["basket"] not in parts:
+            raise DataError(f"Receipt split uses a non-spending basket {p['basket']!r}")
+        parts[p["basket"]] += Decimal(str(p["total_eur"]))
+    if total != groceries:
+        raise DataError(f"Receipt groceries ({total}) do not match card groceries ({groceries}) for this period")
+    if sum(parts.values(), Decimal(0)) + without != total:
+        raise DataError("Receipt split does not add up to the grocery total")
+
+    spent = {b["basket"]: Decimal(str(b["spent_eur"])) for b in summary["baskets"]}
+    spent[Basket.MANDATORY_REGULAR.value] -= total - without
+    for b, v in parts.items():
+        spent[b] += v
+    new_total = sum(spent.values(), Decimal(0))
+    if new_total != Decimal(str(summary["spending_total_eur"])):
+        raise DataError("Total spending changed when applying receipts")  # cannot happen if the checks above pass
+    out = dict(summary)
+    out["baskets"] = [{**b, "spent_eur": _eur(spent[b["basket"]]), "share_pct": _pct(spent[b["basket"]], new_total)}
+                      for b in summary["baskets"]]
+    out["synthetic"] = True
+    out["receipts"] = {
+        "grocery_total_eur": _eur(total),
+        "without_receipt_eur": _eur(without),
+        "split": [{"basket": b, "label": BASKET_LABELS[Basket(b)], "total_eur": _eur(v)} for b, v in parts.items()],
+        "top_leak_items": split.get("top_leak_items", []),
+        "synthetic": True,
+    }
+    return out
+
+
 TX_COLUMNS = ("tx_id", "customer_id", "bank_account_id", "tx_date", "tx_timestamp", "category", "subcategory",
               "tx_amount_eur", "balance_after_eur", "transaction_type", "merchant_id", "mcc_code", "basket")
 

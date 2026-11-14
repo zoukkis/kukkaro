@@ -42,9 +42,11 @@ def numbers_in_text(text: str) -> list[Decimal]:
 
 
 def allowed_numbers(tool_calls: list[dict], extra_text: str = "") -> set[Decimal]:
-    """Every number that appears in tool arguments or results (incl. digits inside dates)."""
+    """Every number that appears in tool arguments or results (incl. digits inside dates), plus every
+    number in `extra_text` (e.g. web sources), read the same way as answers ("8,18", "2 000")."""
     blob = json.dumps([{"a": c.get("args"), "r": c.get("result")} for c in tool_calls], ensure_ascii=False, default=str)
     allowed = {abs(d) for d in (_to_decimal(x) for x in re.findall(r"-?\d+(?:\.\d+)?", blob + " " + extra_text)) if d is not None}
+    allowed |= set(numbers_in_text(extra_text))
     return {d.normalize() for d in allowed}
 
 

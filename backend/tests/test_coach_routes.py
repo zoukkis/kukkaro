@@ -38,7 +38,6 @@ def test_summary_defaults_to_month_of_today(client):
 @pytest.mark.parametrize("path, params, status", [
     ("/api/customers/NOPE/summary", {}, 404),
     ("/api/customers/C1/summary", {"month": "2026-13"}, 422),
-    ("/api/customers/C1/summary", {"month": "2026-09", "receipts": "true"}, 503),
     ("/api/customers/NOPE/transactions", {}, 404),
     ("/api/customers/C1/transactions", {"basket": "FOO"}, 422),
     ("/api/customers/C1/transactions", {"limit": 0}, 422),
@@ -86,3 +85,24 @@ def test_what_if(client):
 ])
 def test_what_if_errors(client, body, status):
     assert client.post("/api/customers/C1/what-if", json=body).status_code == status
+
+
+def test_summary_with_receipts(client, monkeypatch):
+    import sys
+    import types as pytypes
+    fake = pytypes.ModuleType("kukkaro.receipts.insights")
+    fake.basket_split = lambda cid, start, end: {
+        "grocery_total_eur": 100.0, "without_receipt_eur": 0.0,
+        "split": [{"basket": "MANDATORY_REGULAR", "total_eur": 70.0}, {"basket": "EVERYDAY", "total_eur": 30.0}],
+        "top_leak_items": [{"name": "Energy drink 0.5 l", "total_eur": 12.0, "qty": 6}]}
+    monkeypatch.setitem(sys.modules, "kukkaro.receipts.insights", fake)
+    s = client.get("/api/customers/C1/summary", params={"month": "2026-09", "receipts": "true"}).json()
+    assert [b["total_eur"] for b in s["baskets"]] == [930.0, 120.0, 70.5] and s["spending_eur"] == 1120.5
+    assert s["synthetic"] is True and s["receipts"]["top_leak_items"][0]["name"] == "Energy drink 0.5 l"
+
+
+def test_summary_receipts_unavailable_is_503(client, monkeypatch):
+    import sys
+    monkeypatch.setitem(sys.modules, "kukkaro.receipts.insights", None)   # import fails
+    r = client.get("/api/customers/C1/summary", params={"month": "2026-09", "receipts": "true"})
+    assert r.status_code == 503

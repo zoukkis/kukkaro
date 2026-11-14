@@ -37,18 +37,24 @@ def web_summary(s: dict[str, Any], month: str) -> dict[str, Any]:
             {"category": c["name"], "basket": c["basket"], "total_eur": c["spent_eur"], "tx_count": c["transactions"]}
             for c in s["top_categories"]
         ],
-        "receipts": None,
+        "receipts": s.get("receipts"),
+        **({"synthetic": True} if s.get("synthetic") else {}),
     }
 
 
 @router.get("/customers/{customer_id}/summary")
 def summary(customer_id: str, month: str | None = None, receipts: bool = False) -> dict[str, Any]:
-    """Spending per basket and top categories for one month (default: the month of 'today')."""
+    """Spending per basket and top categories for one month (default: the month of 'today').
+    `?receipts=true` gives the With-receipts view: grocery spend split by (synthetic) receipt items."""
     m = month or metrics.get_today().strftime("%Y-%m")
     start, end = metrics.month_bounds(m)
     s = metrics.spending_summary(customer_id, start, end)
     if receipts:
-        raise HTTPException(status_code=503, detail="The receipt split is not available yet (RECEIPTS module not merged).")
+        try:
+            from kukkaro.receipts.insights import basket_split
+        except ImportError:
+            raise HTTPException(status_code=503, detail="The receipt split is not available yet (RECEIPTS module not merged).") from None
+        s = metrics.merge_grocery_split(s, basket_split(customer_id, start, end))
     return web_summary(s, m)
 
 

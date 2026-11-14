@@ -160,5 +160,41 @@ def run(system: str, history: list[dict], message: str, tools: list[ToolSpec],
     return result
 
 
+def complete_json(system: str, prompt: str, schema: dict, provider: str | None = None) -> tuple[dict | None, RunResult]:
+    """One structured answer (JSON matching `schema`) with no tools; used by the Butler.
+    Same timeouts and fallback model as `run()`. Returns (parsed JSON or None, RunResult)."""
+    from google.genai import types
+
+    cfg = provider_config(provider)
+    t0 = time.monotonic()
+    deadline = t0 + TIMEOUTS[cfg["provider"]][1]
+    models = [cfg["model"]] + ([FALLBACK_MODELS[cfg["provider"]]] if FALLBACK_MODELS.get(cfg["provider"]) else [])
+    errors: list[str] = []
+    result = RunResult(text="", model=cfg["model"], host="google", provider=cfg["provider"])
+    parsed = None
+    for i, model in enumerate(models):
+        if i > 0 and deadline - time.monotonic() < MIN_SECONDS_FOR_FALLBACK:
+            break
+        result = RunResult(text="", model=model, host="google", provider=cfg["provider"])
+        try:
+            gen_cfg = types.GenerateContentConfig(
+                system_instruction=system, response_mime_type="application/json", response_json_schema=schema,
+                thinking_config=types.ThinkingConfig(thinking_level="low") if cfg["provider"] == "gemini" else None)
+            t = time.monotonic()
+            resp = _google_client(cfg["provider"]).models.generate_content(model=model, contents=prompt, config=gen_cfg)
+            result.round_seconds.append(round(time.monotonic() - t, 2))
+            result.text = resp.text or ""
+            parsed = json.loads(result.text)
+            break
+        except Exception as e:
+            key = os.environ.get("GEMINI_API_KEY") or ""
+            errors.append(f"{model}: {type(e).__name__}: {str(e).replace(key, '<key>') if key else e}"[:300])
+            log.warning("JSON completion failed: %s", errors[-1])
+    if parsed is None:
+        result.error = " | ".join(errors) or "no answer"
+    result.seconds = round(time.monotonic() - t0, 2)
+    return parsed, result
+
+
 def dumps(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, default=str)
