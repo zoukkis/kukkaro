@@ -30,6 +30,15 @@ export interface CategoryTotal {
   total_eur: number;
 }
 
+// Present on /summary?receipts=true: the grocery payments re-split by receipt line (synthetic).
+export interface ReceiptSplit {
+  grocery_total_eur: number;
+  without_receipt_eur: number;
+  split: { basket: SpendingBasket; label: string; total_eur: number }[];
+  top_leak_items: { name: string; total_eur: number; qty: number }[];
+  synthetic: true;
+}
+
 export interface Summary {
   customer_id: string;
   month: string; // YYYY-MM
@@ -38,6 +47,47 @@ export interface Summary {
   balance_eur: number;
   baskets: BasketTotal[];
   top_categories: CategoryTotal[];
+  receipts?: ReceiptSplit | null;
+  synthetic?: boolean;
+}
+
+// Receipt contract (root AGENTS.md §5.3). Always synthetic in this project.
+export interface ReceiptItem {
+  name: string;
+  category: string;
+  qty: number;
+  unit_price_eur: number;
+  line_total_eur: number;
+  basket: SpendingBasket;
+  store_brand: boolean;
+}
+
+export interface Receipt {
+  tx_id: string;
+  store: string;
+  timestamp: string;
+  total_eur: number;
+  synthetic: true;
+  channel?: "in_store" | "online_order";
+  delivery_fee_eur?: number;
+  items: ReceiptItem[];
+}
+
+export interface ButlerSource {
+  n: number;
+  title: string;
+  url: string;
+  published_date?: string | null;
+  cited?: boolean;
+}
+
+export interface ButlerResponse {
+  answer: string;
+  sources: ButlerSource[];
+  next_steps: string[];
+  draft?: { kind: string; to: string | null; subject: string; body: string; open_url: string | null; mailto: string | null } | null;
+  model?: string;
+  error?: string;
 }
 
 export interface Transaction {
@@ -64,9 +114,12 @@ export interface TransactionPage {
 }
 
 export interface SafeToSpend {
-  amount_eur: number;
-  until_date: string;
-  explanation_inputs: Record<string, number | string>;
+  amount_eur: number; // until payday
+  until_date: string; // next payday (estimated)
+  per_day_eur: number;
+  this_week_eur: number;
+  status?: string;
+  explanation_inputs: Record<string, unknown>;
 }
 
 export interface ChatTurn {
@@ -105,15 +158,29 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const real = {
-  summary: (id: string, month?: string) =>
-    http<Summary>(`/customers/${encodeURIComponent(id)}/summary${month ? `?month=${month}` : ""}`),
-  transactions: (id: string, opts: { limit?: number; offset?: number; basket?: Basket } = {}) => {
+  summary: (id: string, month?: string, receipts = false) => {
+    const q = new URLSearchParams();
+    if (month) q.set("month", month);
+    if (receipts) q.set("receipts", "true");
+    return http<Summary>(`/customers/${encodeURIComponent(id)}/summary?${q}`);
+  },
+  transactions: (id: string, opts: { limit?: number; offset?: number; basket?: Basket; month?: string } = {}) => {
     const q = new URLSearchParams();
     if (opts.limit != null) q.set("limit", String(opts.limit));
     if (opts.offset != null) q.set("offset", String(opts.offset));
     if (opts.basket) q.set("basket", opts.basket);
+    if (opts.month) q.set("month", opts.month);
     return http<TransactionPage>(`/customers/${encodeURIComponent(id)}/transactions?${q}`);
   },
+  // null = no receipt for this transaction (404: not a grocery purchase)
+  receipt: async (txId: string): Promise<Receipt | null> => {
+    const res = await fetch(`${BASE}/transactions/${encodeURIComponent(txId)}/receipt`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.json() as Promise<Receipt>;
+  },
+  butler: (customer_id: string, task: string) =>
+    http<ButlerResponse>(`/butler`, { method: "POST", body: JSON.stringify({ customer_id, task }) }),
   safeToSpend: (id: string) =>
     http<SafeToSpend>(`/customers/${encodeURIComponent(id)}/safe-to-spend`),
   chat: (customer_id: string, message: string, history: ChatTurn[]) =>
@@ -190,8 +257,10 @@ const mockTx: Transaction[] = rows.map(
 );
 
 const mockSafe: SafeToSpend = {
-  amount_eur: 127.05,
+  amount_eur: 272.27,
   until_date: "2026-10-15",
+  per_day_eur: 18.15,
+  this_week_eur: 127.05,
   explanation_inputs: {
     balance_eur: 612.3,
     regular_essentials_still_expected_eur: 485.25,
@@ -267,8 +336,54 @@ function mockChat(message: string): ChatResponse {
   };
 }
 
+const mockReceiptSplit: ReceiptSplit = {
+  grocery_total_eur: 611.16,
+  without_receipt_eur: 0,
+  split: [
+    { basket: "MANDATORY_REGULAR", label: "Regular essentials", total_eur: 404.42 },
+    { basket: "MANDATORY_IRREGULAR", label: "Unexpected necessities", total_eur: 5.99 },
+    { basket: "EVERYDAY", label: "Everyday spending", total_eur: 200.75 },
+  ],
+  top_leak_items: [
+    { name: "Energy drink 0.5 l", total_eur: 81.59, qty: 41 },
+    { name: "Pick-and-mix candy 200 g", total_eur: 40.8, qty: 17 },
+  ],
+  synthetic: true,
+};
+
+const mockReceipt = (txId: string): Receipt => ({
+  tx_id: txId,
+  store: "S-market (synthetic)",
+  timestamp: "2026-09-02T17:42:00",
+  total_eur: 12.37,
+  synthetic: true,
+  channel: "in_store",
+  items: [
+    { name: "Lactose-free milk 1 l", category: "dairy", qty: 2, unit_price_eur: 1.39, line_total_eur: 2.78, basket: "MANDATORY_REGULAR", store_brand: false },
+    { name: "Rye bread", category: "bakery", qty: 1, unit_price_eur: 2.49, line_total_eur: 2.49, basket: "MANDATORY_REGULAR", store_brand: true },
+    { name: "Energy drink 0.5 l", category: "drinks", qty: 2, unit_price_eur: 1.99, line_total_eur: 3.98, basket: "EVERYDAY", store_brand: false },
+    { name: "Cinnamon bun", category: "bakery", qty: 2, unit_price_eur: 1.56, line_total_eur: 3.12, basket: "EVERYDAY", store_brand: false },
+  ],
+});
+
 const mock: typeof real = {
-  summary: async () => (await wait(300), mockSummary),
+  summary: async (_id, _month, receipts = false) => {
+    await wait(300);
+    return receipts ? { ...mockSummary, receipts: mockReceiptSplit, synthetic: true } : mockSummary;
+  },
+  receipt: async (txId) => {
+    await wait(200);
+    return mockTx.find((t) => t.tx_id === txId)?.category === "Groceries" ? mockReceipt(txId) : null;
+  },
+  butler: async (_id, task) => {
+    await wait(1200);
+    return {
+      answer: `Mock mode: the Butler needs the real backend and an Exa key to answer "${task}".`,
+      sources: [],
+      next_steps: [],
+      model: "mock",
+    };
+  },
   transactions: async (_id, opts = {}) => {
     await wait(250);
     const all = opts.basket ? mockTx.filter((t) => t.basket === opts.basket) : mockTx;

@@ -9,6 +9,9 @@ export const formatFigure = (f: Figure) =>
 export const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
+export const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
 export const formatMonth = (ym: string) =>
   new Date(`${ym}-01`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
