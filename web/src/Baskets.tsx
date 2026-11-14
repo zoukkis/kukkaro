@@ -276,7 +276,7 @@ function BasketTransactions({
   );
 }
 
-function ReceiptView({ tx, onBack, backLabel }: { tx: Transaction; onBack: () => void; backLabel: string }) {
+export function ReceiptView({ tx, onBack, backLabel }: { tx: Transaction; onBack: () => void; backLabel: string }) {
   const [receipt, setReceipt] = useState<Receipt | null | undefined>(undefined);
   const [error, setError] = useState(false);
 
