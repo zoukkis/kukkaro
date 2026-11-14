@@ -30,16 +30,50 @@ cd ../web && npm install && npm run dev
 ## For the judges
 
 ### S-Pankki: Personal Economic Trainer
-_TODO (Sunday): 3–5 lines: the three baskets, how it fits S-mobiili, feasibility._
+- **The four questions from S-Bank's brief, one tap away:** where did my money go, what kind of
+  spender am I, what can I safely spend this week, how could I save more. The coach answers in plain
+  language; every number comes from deterministic queries (`kukkaro/data/metrics.py`) and "How I got
+  this" shows the source. The LLM never computes a number: an answer with a number no tool produced is
+  retried, then withheld (`coach/numbers.py`).
+- **Teaching angle:** S-Bank's three baskets (🏠 Regular essentials, 🔧 Unexpected necessities,
+  ☕ Everyday spending) are visible everywhere. **Receipts** split a grocery payment into essentials and
+  everyday treats: for the demo customer, €200.75 of everyday spending was hidden inside €611.16 of
+  groceries in September. Try the **With / Without receipts** toggle (`docs/WHY_RECEIPTS.md`).
+- **Bank-like Home:** account card, coming-up bills before payday, recent transactions; grocery rows
+  open the (synthetic) receipt.
+- **Feasibility and S-mobiili fit:** a mobile web view that S-mobiili can embed. In production only
+  the bottom layer changes: the bank's own transactions and the receipt archive S-mobiili already has,
+  behind the existing `ReceiptProvider` interface (`docs/PRODUCTION_PATH.md`).
 
 ### Exa: The Internet Butler
-_TODO: the 3 demo tasks, how Exa is used (search + contents, official domains), where the code lives (`backend/kukkaro/butler/`)._
+- **For whom:** young adults and anyone facing a money question the bank data can't answer: "Why did
+  my utility bill double?", "Can I get housing allowance?", "Is my rent increase allowed?".
+- **How Exa is used:** search + contents for current facts, preferring official sources (Kela,
+  Vero, Energy Authority, Finnish consumer authorities); one cited source per fact, shown under the
+  answer; next-step checklist and an optional draft message; the user makes the final call.
+- **Privacy:** only an anonymised question leaves the trusted zone (gateway in `coach/privacy.py`).
+- **Live:** works on questions the judges type; Butler eval: 3/3 demo tasks and 10/10 unseen phrasings
+  (incl. Finnish). Code: `backend/kukkaro/butler/`.
 
 ### Gemini API
-_TODO: function calling over deterministic finance tools; why Gemini._
+- **Gemini answers the public side:** it turns Exa's pages into a short sourced answer in the Butler
+  (`butler/research.py`), and it is the backup coach when the open model fails, so the demo never stops.
+- **Function calling over deterministic finance tools:** the coach calls tools such as
+  `safe_to_spend`, `spending_summary`, `what_if`, `item_what_if` and never computes numbers itself.
+- Eval (`coach/eval.py`, 15 questions on CUST02979): Gemini 15/15, no invented numbers.
 
 ### Gemma + Verda
-_TODO: the EU privacy mode; the Gemini vs. Gemma eval results (coach/eval.py); the Verda products used and why; batch precompute over 5,100 customers; path to scale._
+- **Gemma 4 (26B A4B, open weights) is the trusted model:** it is the only model that sees the
+  customer's transactions, and it runs on **Verda in Finland** (Serverless Container, vLLM, 1× RTX PRO
+  6000 96 GB, OpenAI-compatible endpoint).
+- **Eval, same 15 questions, same tools:** Gemma 4 on Verda **15/15**, median ~2 s (vs Gemini 15/15,
+  median 6.8 s; Gemma via Google's API 14/15, median 15 s). Numbers retried 0, withheld 0.
+- **Verda products used:** Serverless Containers for Gemma (GPU, OpenAI-compatible, scales by
+  replicas); a CPU/GPU instance for the public demo (Caddy + uvicorn, deployed with
+  `deploy/deploy_demo.sh` in ~5 min).
+- **Path to scale:** more container replicas for live chat, and a nightly batch over all customers
+  (e.g. a monthly digest per customer, checked by the same number checker) on the same endpoint.
+- Process log, measurements and failures: `docs/DECISIONS.md`.
 
 ## Privacy design
 One assistant, and the models are split by **who may see what data**, not by feature:
@@ -56,10 +90,10 @@ searched without knowing who asks. If Gemma fails, Gemini answers that turn and 
 "Backup model used". Every number still comes from a tool or a cited source.
 
 ## Third-party models
-Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
-(use restrictions: ai.google.dev/gemma/prohibited_use_policy). Kukkaro is a coach, not a licensed
-financial or legal advisor, and makes no automated decisions about anyone. Not affiliated with or
-endorsed by Google, S-Bank or S-Group.
+Gemma 4 is an open-weight model released by Google under the Apache 2.0 licence; we still follow
+Google's Gemma prohibited-use policy as good practice. Kukkaro is a coach, not a licensed financial or
+legal advisor, and makes no automated decisions about anyone. Not affiliated with or endorsed by
+Google, S-Bank or S-Group.
 
 ## Repo layout
 See `AGENTS.md` §4. Process log: `docs/DECISIONS.md`.
