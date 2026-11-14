@@ -14,7 +14,10 @@ summary we post to their Discord is built from this file. Append, never rewrite.
 
 - 2026-11-14 11:55 · Konsta · Receipt contract adds optional `channel` (in_store | online_order) + `delivery_fee_eur`, mirroring S-mobiili's web-shop order history; synthetic, labelled · enables planned-vs-impulse insight
 
+- 2026-11-14 · WEB · Web stack: Vite + React + TypeScript, plain CSS, no other runtime deps; mock/real API switched by `VITE_USE_MOCK` in `web/src/api.ts` · backend not ready yet, so the switch is one flag
+
 ## Requests between workstreams
 (Format: `from → to · what is needed · status`)
+- WEB → COACH/DATA · Web runs on mock data in `web/src/api.ts` until the API exists. Please return these shapes (or tell WEB what differs): summary `{customer_id, month, income_eur, spending_eur, balance_eur, baskets[{basket, total_eur, share_pct, tx_count}], top_categories[{category, basket, total_eur}]}` (only the 3 spending baskets in `baskets`; `share_pct` computed in the backend); transactions `{items[tx_enriched row], total, limit, offset}`; chat `tool_calls[{name, args}]`, `figures[{label, value, unit: "EUR"|"%"|"count", source}]`, optional `model` (for the privacy toggle). Dev proxy expects the API on `localhost:8000` · open
 
 ## Lessons / failures
