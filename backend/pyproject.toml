@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kukkaro"
 version = "0.1.0"
 description = "Kukkaro: an AI money coach for S-mobiili (Junction 2026)"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.162",           # HTTP API (architecture, AGENTS.md §4)
