@@ -185,3 +185,43 @@ def test_month_helpers():
     assert m.month_bounds("2026-02") == (date(2026, 2, 1), date(2026, 2, 28))
     assert m.add_months(date(2026, 1, 31), 1) == date(2026, 2, 28)
     assert m.add_months(date(2026, 11, 15), 2) == date(2027, 1, 15)
+
+
+# ---------- With receipts: merge_grocery_split ----------
+
+def fake_split(total=100.0, without=0.0, regular=70.0, everyday=30.0):
+    return {"grocery_total_eur": total, "without_receipt_eur": without,
+            "split": [{"basket": "MANDATORY_REGULAR", "total_eur": regular}, {"basket": "EVERYDAY", "total_eur": everyday}],
+            "top_leak_items": [{"name": "Energy drink 0.5 l", "total_eur": 12.0, "qty": 6}]}
+
+
+def test_merge_grocery_split_moves_leaks_and_keeps_total(data_env):
+    s = m.spending_summary("C1", *SEP)          # groceries 100 (40 + 60), all regular essentials without receipts
+    r = m.merge_grocery_split(s, fake_split())  # receipts: 70 essentials, 30 everyday items
+    b = {x["basket"]: x for x in r["baskets"]}
+    # regular 960 - 100 + 70 = 930; irregular 120; everyday 40.50 + 30 = 70.50; total still 1120.50
+    assert (b["MANDATORY_REGULAR"]["spent_eur"], b["MANDATORY_IRREGULAR"]["spent_eur"], b["EVERYDAY"]["spent_eur"]) == (930.0, 120.0, 70.5)
+    assert r["spending_total_eur"] == 1120.50
+    # 930 / 1120.5 = 83.00 %, 120 / 1120.5 = 10.71 %, 70.5 / 1120.5 = 6.29 %
+    assert [x["share_pct"] for x in r["baskets"]] == [83.0, 10.7, 6.3]
+    assert b["MANDATORY_REGULAR"]["transactions"] == 5          # card counts unchanged
+    assert r["synthetic"] is True and r["receipts"]["synthetic"] is True
+    assert r["receipts"]["split"][2] == {"basket": "EVERYDAY", "label": "Everyday spending", "total_eur": 30.0}
+    assert s["baskets"][0]["spent_eur"] == 960.0                  # the input is not modified
+
+
+def test_merge_grocery_split_with_trips_without_receipt(data_env):
+    s = m.spending_summary("C1", *SEP)
+    r = m.merge_grocery_split(s, fake_split(without=40.0, regular=45.0, everyday=15.0))
+    # only 60 has receipts: regular 960 - 60 + 45 = 945; everyday 40.50 + 15 = 55.50
+    assert [x["spent_eur"] for x in r["baskets"]] == [945.0, 120.0, 55.5]
+
+
+@pytest.mark.parametrize("split", [
+    fake_split(total=99.0, regular=69.0),            # receipts do not match card groceries
+    fake_split(regular=70.0, everyday=29.99),        # split does not add up to the cent
+    {**fake_split(), "split": [{"basket": "INCOME", "total_eur": 100.0}]},
+])
+def test_merge_grocery_split_refuses_inconsistent_receipts(data_env, split):
+    with pytest.raises(m.DataError):
+        m.merge_grocery_split(m.spending_summary("C1", *SEP), split)
