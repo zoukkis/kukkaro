@@ -13,6 +13,10 @@ that, no state library: React state plus `fetch` is enough. Design for a **390 �
 first; the desktop view can just center the phone-width layout.
 
 ## Screens (in priority order; ship 1–3 before touching 4–6)
+0. **Home** (decided 14 Nov): bank-style first tab. Account card (balance = latest transaction's
+   `balance_after_eur`, masked account number), one Kukkaro insight from `summary?receipts=true`,
+   recent transactions (grocery rows open the receipt view), a short 🔒 privacy line. Tabs:
+   Home · Baskets · Ask Kukkaro · Help (= Butler). Headings in sentence case. No robot concept on Home.
 1. **Chat**: message list, input, suggested question chips. The first four chips are S-Bank's
    brief questions: "Where did my money go?", "What kind of spender am I?", "What can I safely
    spend this week?", "How could I save more?". Each answer has a small "How I got this"

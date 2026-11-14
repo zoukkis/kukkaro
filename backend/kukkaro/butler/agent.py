@@ -188,7 +188,7 @@ def _run_live(customer_id: str, task: str, t0: float, use_cache: bool = True) ->
     ctx = user_context(customer_id)                       # trusted zone: the customer's own data
     today = date.today().isoformat()                      # web facts are about the real present
     question, blocked = anonymised_question(task, ctx)    # privacy gateway
-    base = {"customer_id": customer_id, "task": task, "context": ctx, "zones": ["trusted"], "fallback": False,
+    base = {"customer_id": customer_id, "task": task, "context": ctx, "zones": ["trusted"], "fallback": False, "products": [],
             "research": {"question_sent": question, "blocked": blocked}}
     if question is None:
         return {**base, "answer": privacy.REFUSAL_TEXT, "sources": [], "next_steps": [], "draft": None,
@@ -196,7 +196,7 @@ def _run_live(customer_id: str, task: str, t0: float, use_cache: bool = True) ->
 
     found = research.research(question, use_cache=use_cache)   # public zone: Exa + Gemini, question only
     sources = found["sources"]
-    base.update(zones=["trusted", "public"], searches=found.get("searches", []),
+    base.update(zones=["trusted", "public"], searches=found.get("searches", []), products=found.get("products") or [],
                 research={"question_sent": question, "blocked": [], "kind": found.get("kind"), "facts": found["facts"]})
     if not sources:
         return {**base, "answer": "I couldn't find reliable sources for this right now, so I won't guess. Please try "
