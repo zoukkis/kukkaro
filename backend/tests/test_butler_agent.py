@@ -29,6 +29,12 @@ def fake_llm(answer_json):
     return complete_json, calls
 
 
+@pytest.fixture(autouse=True)
+def empty_answer_cache(data_env):
+    import shutil
+    shutil.rmtree(data_env["root"] / "cache" / "butler", ignore_errors=True)
+
+
 @pytest.fixture
 def fakes(monkeypatch):
     monkeypatch.setattr(exa_client, "search_many", lambda queries: SOURCES)
@@ -75,10 +81,14 @@ def test_address_from_a_source_is_kept_and_invented_numbers_flagged(data_env, fa
 
 def test_no_draft_and_no_sources(data_env, fakes, monkeypatch):
     fakes({"answer": "Info [1].", "next_steps": [], "draft": {"kind": "none", "subject": "", "body": ""}})
-    assert agent.run("C1", "What is Kela?")["draft"] is None
+    first = agent.run("C1", "What is Kela?")
+    assert first["draft"] is None and first["cached"] is False
     monkeypatch.setattr(exa_client, "search_many", lambda q: [{"query": "x", "domains": None, "results": [], "error": "down"}])
-    r = agent.run("C1", "What is Kela?")
+    again = agent.run("C1", "  what is KELA? ")                     # same task, normalised: from the cache
+    assert again["cached"] is True and again["answer"] == first["answer"]
+    r = agent.run("C1", "What is Kela?", use_cache=False)            # live again: no sources now
     assert r["sources"] == [] and r["error"] == "no sources" and "won't guess" in r["answer"]
+    assert agent.run("C1", "What is Kela?")["cached"] is True         # the failure was not cached over the good answer
 
 
 def test_route(data_env, fakes):

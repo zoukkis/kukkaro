@@ -78,6 +78,18 @@ class WhatIfRequest(BaseModel):
 
 @router.post("/customers/{customer_id}/what-if")
 def what_if(customer_id: str, body: WhatIfRequest) -> dict[str, Any]:
-    """Monthly and yearly impact of changing a category's spending. `monthly_eur`/`yearly_eur` per §5.4."""
-    r = metrics.what_if(customer_id, body.category_or_item, body.change_pct)
+    """Monthly and yearly impact of changing spending on a card category (e.g. "Restaurants") or, if no
+    category matches, on a receipt item (e.g. "Energy drink 0.5 l", synthetic). `monthly_eur`/`yearly_eur` per §5.4."""
+    from kukkaro.coach.tools import item_what_if
+    try:
+        r = metrics.what_if(customer_id, body.category_or_item, body.change_pct)
+    except metrics.UnknownCustomer:
+        raise
+    except metrics.DataError as category_error:
+        if not str(category_error).startswith("Unknown category"):
+            raise
+        try:
+            r = item_what_if(customer_id, body.category_or_item, body.change_pct)
+        except metrics.DataError:
+            raise metrics.DataError(f"No category or receipt item matches {body.category_or_item!r}") from None
     return {"monthly_eur": r["monthly_change_eur"], "yearly_eur": r["yearly_change_eur"], **r}
