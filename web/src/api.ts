@@ -107,6 +107,43 @@ export interface BillSuggestion {
 
 export type Provider = "gemini" | "gemma";
 
+// Concept demo: a planned grocery order with robot delivery. Nothing is ordered or paid.
+export type DeliveryOption = "robot" | "home" | "pickup";
+export interface OrderLine {
+  name: string;
+  qty: number;
+  unit: "pcs" | "kg";
+  unit_price_eur: number;
+  line_total_eur: number;
+  basket: Basket;
+  bought_on_trips: number;
+}
+export interface GroceryPlan {
+  plan_id: string;
+  based_on: { start: string; end: string; receipts: number; min_trips: number };
+  items: OrderLine[];
+  left_out: OrderLine[];
+  include_treats: boolean;
+  items_total_eur: number;
+  treats_per_week_eur: number;
+  delivery: { option: DeliveryOption; label: string; eta: string; fee_eur: number; fee_is_example: boolean };
+  delivery_options: { option: DeliveryOption; label: string; eta: string; fee_eur: number }[];
+  order_total_eur: number;
+  safe_to_spend_this_week_eur: number;
+  left_this_week_after_order_eur: number;
+  fits_this_week: boolean;
+  note: string;
+}
+export interface OrderConfirmation {
+  status: "approved_simulation";
+  order_ref: string;
+  items: number;
+  order_total_eur: number;
+  delivery: GroceryPlan["delivery"];
+  left_this_week_after_order_eur: number;
+  note: string;
+}
+
 export interface Transaction {
   tx_id: string;
   customer_id: string;
@@ -205,6 +242,15 @@ const real = {
     http<SafeToSpend>(`/customers/${encodeURIComponent(id)}/safe-to-spend`),
   suggestions: (id: string) =>
     http<{ suggestions: BillSuggestion[] }>(`/customers/${encodeURIComponent(id)}/butler/suggestions`),
+  groceryPlan: (id: string, includeTreats: boolean, delivery: DeliveryOption) =>
+    http<GroceryPlan>(
+      `/customers/${encodeURIComponent(id)}/grocery-order?include_treats=${includeTreats}&delivery=${delivery}`,
+    ),
+  approveOrder: (id: string, plan_id: string, include_treats: boolean, delivery: DeliveryOption) =>
+    http<OrderConfirmation>(`/customers/${encodeURIComponent(id)}/grocery-order/approve`, {
+      method: "POST",
+      body: JSON.stringify({ plan_id, include_treats, delivery }),
+    }),
   chat: (customer_id: string, message: string, history: ChatTurn[], provider?: Provider) =>
     http<ChatResponse>(`/chat`, {
       method: "POST",
@@ -300,6 +346,14 @@ const fig = (label: string, value: number, unit: Figure["unit"], source: string)
 function mockChat(message: string): ChatResponse {
   const m = message.toLowerCase();
   const src = `Sep 2026, all baskets`;
+  if (m.includes("order") || m.includes("buy")) {
+    return {
+      answer:
+        "I prepared your usual groceries for delivery by robot. The order comes to €16.75 and fits this week, leaving €110.30. I left out your energy drinks (€15.92 a week). Review and approve it below; nothing is bought until you do.",
+      tool_calls: [{ name: "plan_grocery_order", args: {} }],
+      figures: [fig("Order total", 16.75, "EUR", "Planned order, synthetic receipts")],
+    };
+  }
   if (m.includes("where") || m.includes("go")) {
     return {
       answer:
@@ -432,6 +486,43 @@ const mock: typeof real = {
           source: "your bank data, 2026-09 vs the 3 months before",
         },
       ],
+    }
+  ),
+  // Illustrative mock (the real numbers come from GET /grocery-order).
+  groceryPlan: async (_id, includeTreats, delivery) => {
+    await wait(400);
+    const fees = { robot: 3.9, home: 6.9, pickup: 0 };
+    const items: OrderLine[] = [
+      { name: "Vegetables & fruit (by weight)", qty: 1.8, unit: "kg", unit_price_eur: 3.49, line_total_eur: 6.28, basket: "MANDATORY_REGULAR", bought_on_trips: 26 },
+      { name: "Oat drink 1 l", qty: 2, unit: "pcs", unit_price_eur: 2.29, line_total_eur: 4.58, basket: "MANDATORY_REGULAR", bought_on_trips: 16 },
+      { name: "Toast bread 500 g", qty: 1, unit: "pcs", unit_price_eur: 1.99, line_total_eur: 1.99, basket: "MANDATORY_REGULAR", bought_on_trips: 13 },
+    ];
+    const treats: OrderLine[] = [
+      { name: "Energy drink 0.5 l", qty: 8, unit: "pcs", unit_price_eur: 1.99, line_total_eur: 15.92, basket: "EVERYDAY", bought_on_trips: 20 },
+    ];
+    const itemsTotal = includeTreats ? 28.77 : 12.85;
+    const total = Math.round((itemsTotal + fees[delivery]) * 100) / 100;
+    return {
+      plan_id: "mock00", based_on: { start: "2026-07-01", end: "2026-09-30", receipts: 26, min_trips: 3 },
+      items: includeTreats ? [...items, ...treats] : items, left_out: includeTreats ? [] : treats, include_treats: includeTreats,
+      items_total_eur: itemsTotal, treats_per_week_eur: 15.92,
+      delivery: { option: delivery, label: delivery, eta: "", fee_eur: fees[delivery], fee_is_example: true },
+      delivery_options: [
+        { option: "robot", label: "Delivery robot", eta: "about 30-60 min, where robot delivery is available", fee_eur: 3.9 },
+        { option: "home", label: "Home delivery", eta: "a 1-hour slot today", fee_eur: 6.9 },
+        { option: "pickup", label: "Pick up at the store", eta: "ready in about 2 hours", fee_eur: 0 },
+      ],
+      order_total_eur: total, safe_to_spend_this_week_eur: 127.05,
+      left_this_week_after_order_eur: Math.round((127.05 - total) * 100) / 100, fits_this_week: total <= 127.05,
+      note: "Mock data.",
+    };
+  },
+  approveOrder: async (_id, plan_id, _treats, delivery) => (
+    await wait(600),
+    {
+      status: "approved_simulation" as const, order_ref: `DEMO-${plan_id.slice(0, 6).toUpperCase()}`, items: 3, order_total_eur: 16.75,
+      delivery: { option: delivery, label: "Delivery robot", eta: "about 30-60 min", fee_eur: 3.9, fee_is_example: true },
+      left_this_week_after_order_eur: 110.3, note: "Mock data.",
     }
   ),
   chat: async (_id, message, _history, provider) => (
