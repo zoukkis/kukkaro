@@ -44,7 +44,11 @@ ALIASES: dict[str, str] = {
 
 
 class DataError(ValueError):
-    """Bad input to a metric. The message is user-safe."""
+    """Bad input to a metric. The message is user-safe. The API answers 422."""
+
+
+class UnknownCustomer(DataError):
+    """The customer ID does not exist. The API answers 404."""
 
 
 # ---------- small helpers ----------
@@ -110,6 +114,14 @@ def get_today() -> date:
     return demo_today_env() or _dataset_bounds()[1]
 
 
+def warm_up(customer_id: str | None = None) -> None:
+    """Fill every cache once (dataset dates, category names, age-band medians) so no user request is slow."""
+    get_today()
+    _names()
+    if customer_id:
+        spender_profile(customer_id)
+
+
 def reset_caches() -> None:
     """Forget cached dataset facts (call after switching data folders, e.g. in tests)."""
     _dataset_bounds.cache_clear()
@@ -133,7 +145,7 @@ def complete_months(today: date, n: int) -> tuple[date, date, int]:
 
 def _check_customer(con, customer_id: str) -> None:
     if not con.execute("SELECT 1 FROM customers WHERE customer_id = ?", [customer_id]).fetchone():
-        raise DataError(f"Unknown customer {customer_id!r}")
+        raise UnknownCustomer(f"Unknown customer {customer_id!r}")
 
 
 @lru_cache(maxsize=1)
@@ -540,6 +552,87 @@ def recurring_payments(customer_id: str, today: date | str | None = None) -> dic
         "other_income": {"payments": other[0], "total_eur": _eur(other[1])},
         "note": "Utility bills have no merchant in this data, so electricity, water and internet cannot be told apart.",
     }
+
+
+def merge_grocery_split(summary: dict[str, Any], split: dict[str, Any]) -> dict[str, Any]:
+    """The With-receipts view of a `spending_summary`: grocery spend that has a (synthetic) receipt
+    is moved out of Regular essentials into the baskets of its items. Total spending is unchanged.
+
+    `split` comes from RECEIPTS' `basket_split(customer_id, start, end)` for the same period:
+    {grocery_total_eur, without_receipt_eur, split: [{basket, total_eur}], top_leak_items: [...]}.
+    Raises DataError if the split does not add up to the card data to the cent.
+    Basket `transactions` stay card counts (one trip can span several baskets)."""
+    groceries = sum((Decimal(str(c["spent_eur"])) for c in summary["top_categories"]
+                     if c["name"] == "Groceries" and c["basket"] == Basket.MANDATORY_REGULAR.value), Decimal(0))
+    total = Decimal(str(split["grocery_total_eur"]))
+    without = Decimal(str(split["without_receipt_eur"]))
+    parts = {b: Decimal(0) for b in SPENDING}
+    for p in split["split"]:
+        if p["basket"] not in parts:
+            raise DataError(f"Receipt split uses a non-spending basket {p['basket']!r}")
+        parts[p["basket"]] += Decimal(str(p["total_eur"]))
+    if total != groceries:
+        raise DataError(f"Receipt groceries ({total}) do not match card groceries ({groceries}) for this period")
+    if sum(parts.values(), Decimal(0)) + without != total:
+        raise DataError("Receipt split does not add up to the grocery total")
+
+    spent = {b["basket"]: Decimal(str(b["spent_eur"])) for b in summary["baskets"]}
+    spent[Basket.MANDATORY_REGULAR.value] -= total - without
+    for b, v in parts.items():
+        spent[b] += v
+    new_total = sum(spent.values(), Decimal(0))
+    if new_total != Decimal(str(summary["spending_total_eur"])):
+        raise DataError("Total spending changed when applying receipts")  # cannot happen if the checks above pass
+    out = dict(summary)
+    out["baskets"] = [{**b, "spent_eur": _eur(spent[b["basket"]]), "share_pct": _pct(spent[b["basket"]], new_total)}
+                      for b in summary["baskets"]]
+    out["synthetic"] = True
+    out["receipts"] = {
+        "grocery_total_eur": _eur(total),
+        "without_receipt_eur": _eur(without),
+        "split": [{"basket": b, "label": BASKET_LABELS[Basket(b)], "total_eur": _eur(v)} for b, v in parts.items()],
+        "top_leak_items": split.get("top_leak_items", []),
+        "synthetic": True,
+    }
+    return out
+
+
+TX_COLUMNS = ("tx_id", "customer_id", "bank_account_id", "tx_date", "tx_timestamp", "category", "subcategory",
+              "tx_amount_eur", "balance_after_eur", "transaction_type", "merchant_id", "mcc_code", "basket")
+
+
+def transactions_page(customer_id: str, limit: int = 50, offset: int = 0, basket: str | None = None,
+                      month: str | None = None) -> dict[str, Any]:
+    """One page of the customer's `tx_enriched` rows, newest first. Optional basket and month filters."""
+    if not 1 <= limit <= 500:
+        raise DataError("limit must be between 1 and 500")
+    if offset < 0:
+        raise DataError("offset cannot be negative")
+    if basket is not None and basket not in {b.value for b in Basket}:
+        raise DataError(f"basket must be one of {', '.join(b.value for b in Basket)}")
+    con = get_conn()
+    _check_customer(con, customer_id)
+    where, params = ["customer_id = ?"], [customer_id]
+    if basket:
+        where.append("basket = ?")
+        params.append(basket)
+    if month:
+        s, e = month_bounds(month)
+        where.append("tx_date BETWEEN ? AND ?")
+        params += [s, e]
+    cond = " AND ".join(where)
+    total = con.execute(f"SELECT count(*) FROM tx_enriched WHERE {cond}", params).fetchone()[0]
+    rows = con.execute(f"""SELECT {', '.join(TX_COLUMNS)} FROM tx_enriched WHERE {cond}
+                           ORDER BY tx_timestamp DESC, tx_id DESC LIMIT ? OFFSET ?""", params + [limit, offset]).fetchall()
+    items = []
+    for r in rows:
+        d = dict(zip(TX_COLUMNS, r))
+        d["tx_date"] = d["tx_date"].isoformat()
+        d["tx_timestamp"] = d["tx_timestamp"].isoformat()
+        d["tx_amount_eur"] = _eur(d["tx_amount_eur"])
+        d["balance_after_eur"] = _eur(d["balance_after_eur"])
+        items.append(d)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 def customer_profile(customer_id: str) -> dict[str, Any]:
