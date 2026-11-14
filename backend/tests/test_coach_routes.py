@@ -106,3 +106,35 @@ def test_summary_receipts_unavailable_is_503(client, monkeypatch):
     monkeypatch.setitem(sys.modules, "kukkaro.receipts.insights", None)   # import fails
     r = client.get("/api/customers/C1/summary", params={"month": "2026-09", "receipts": "true"})
     assert r.status_code == 503
+
+
+def test_rate_limit_on_llm_posts(client, monkeypatch):
+    from kukkaro.api import main
+    monkeypatch.setattr(main, "RATE_LIMITS", {"/api/customers/C1/what-if": (2, 600)})
+    main._hits.clear()
+    body = {"category_or_item": "restaurants", "change_pct": -50}
+    codes = [client.post("/api/customers/C1/what-if", json=body).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+    assert client.get("/api/customers/C1/safe-to-spend").status_code == 200   # GETs are never limited
+    monkeypatch.setenv("RATE_LIMIT", "0")
+    assert client.post("/api/customers/C1/what-if", json=body).status_code == 200
+    main._hits.clear()
+
+
+def test_built_web_app_is_served_at_root(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient as TC
+    from kukkaro.api.main import mount_web
+    app = FastAPI()
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+    assert mount_web(app, tmp_path) is False                     # nothing built: nothing mounted
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<html>Kukkaro</html>")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    assert mount_web(app, tmp_path) is True
+    c = TC(app)
+    assert "Kukkaro" in c.get("/").text and c.get("/assets/app.js").status_code == 200
+    assert c.get("/api/ping").json() == {"ok": True}             # API routes still win

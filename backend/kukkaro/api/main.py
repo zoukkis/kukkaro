@@ -5,27 +5,41 @@ Run from backend/:  uvicorn kukkaro.api.main:app --reload   (the web dev server 
 Other workstreams expose `router` (a FastAPI APIRouter) in their own `router.py`, with paths
 written WITHOUT the /api prefix (e.g. "/transactions/{tx_id}/receipt"); this file mounts them
 under /api. A router that does not exist yet is skipped, so main always runs.
+
+Public demo: if the web app is built (web/dist, or WEB_DIST), it is served at "/" by the same
+server, so one process and one URL hold the whole app. The LLM endpoints are rate-limited per
+visitor so a public URL cannot burn through the Gemini/Exa credits.
 """
 from __future__ import annotations
 
 import importlib
 import logging
 import os
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from kukkaro.api import routes_data
 from kukkaro.data import metrics
 from kukkaro.data.db import get_conn
+from kukkaro.data.settings import REPO_ROOT
 
 log = logging.getLogger("kukkaro.api")
 
 OPTIONAL_ROUTERS = ("kukkaro.coach.router", "kukkaro.receipts.router", "kukkaro.butler.router")
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173", "http://127.0.0.1:4173"]
 state: dict = {"data_loaded": False, "routers": []}
+
+# POST path prefix -> (requests, window in seconds) per visitor IP. Set RATE_LIMIT=0 to turn off.
+RATE_LIMITS: dict[str, tuple[int, int]] = {"/api/chat": (30, 600), "/api/butler": (15, 600)}
+RATE_LIMIT_TEXT = "The public demo allows a limited number of questions per visitor. Please wait a few minutes."
+_hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
 @asynccontextmanager
@@ -48,6 +62,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Kukkaro API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=DEV_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    """Sliding-window limit per visitor on the LLM endpoints. Behind Caddy, the first
+    X-Forwarded-For entry is the real visitor (Caddy does not trust a client-sent header)."""
+    path = request.url.path
+    rule = next((v for k, v in RATE_LIMITS.items() if path.startswith(k)), None)
+    if request.method == "POST" and rule and os.environ.get("RATE_LIMIT", "1") != "0":
+        ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (request.client.host if request.client else "?")
+        limit, window = rule
+        q, now = _hits[(ip, path)], time.monotonic()
+        while q and now - q[0] > window:
+            q.popleft()
+        if len(q) >= limit:
+            return JSONResponse(status_code=429, content={"detail": RATE_LIMIT_TEXT})
+        q.append(now)
+    return await call_next(request)
 
 
 @app.exception_handler(metrics.UnknownCustomer)
@@ -87,3 +119,14 @@ for name in OPTIONAL_ROUTERS:
         continue
     app.include_router(module.router, prefix="/api")
     state["routers"].append(name)
+
+
+def mount_web(target: FastAPI, dist: Path) -> bool:
+    """Serve the built web app at "/" (after all /api routes, so they still win)."""
+    if not (dist / "index.html").exists():
+        return False
+    target.mount("/", StaticFiles(directory=dist, html=True), name="web")
+    return True
+
+
+state["web"] = mount_web(app, Path(os.environ.get("WEB_DIST") or REPO_ROOT / "web" / "dist"))
