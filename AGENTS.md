@@ -149,6 +149,8 @@ delivery fee, which counts as `EVERYDAY`.
 | `POST /api/butler` | body `{customer_id, task}` → `{answer, sources[{title,url}], next_steps[], draft, zones[], fallback, research{question_sent}}`, products[{id,name,price_eur,image,url,own_brand,n}]}` |
 | `GET /api/customers/{id}/swaps` | `{monthly_saving_eur, yearly_saving_eur, swaps[{item, store_brand_twin, monthly_saving_eur, product}], note}` — savings from synthetic receipts, product price + picture from the S-kaupat page |
 | `GET /api/customers/{id}/grocery-order` | concept: `?include_treats&delivery&extra=<product id>&swap=<product id>` (repeatable); products are priced on the server |
+| `POST /api/customers/{id}/watchlist` · `GET` same path | body `{task}` → watch `{id, task, question_sent, last_checked_at, last_result, sources[]}`; GET → `{items[]}` (butler/watchlist.py) |
+| `POST /api/watchlist/{watch_id}/check` · `DELETE /api/watchlist/{watch_id}` | live Exa re-check → `{changed, new_sources[], gone_sources[], updated_sources[], summary, sources[{n,title,url,site,published_date,status}]}` |
 
 Every response that contains synthetic receipt data must include `"synthetic": true` so the UI can label it.
 

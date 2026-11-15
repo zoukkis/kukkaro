@@ -700,3 +700,66 @@ a { color: inherit; }
 .sheet-backdrop { position: absolute; inset: 0; z-index: 20; background: rgb(15 20 18 / 0.45); display: flex; align-items: flex-end; }
 .sheet { position: relative; width: 100%; max-height: 88%; overflow-y: auto; background: var(--bg); border-radius: 24px 24px 0 0; padding: 44px 12px 16px; }
 .sheet-close { position: absolute; top: 6px; right: 8px; width: 44px; height: 44px; border: 0; background: none; display: grid; place-items: center; }
+
+/* ---------- Watchlist (Help tab): saved Butler questions, re-checked with Exa ---------- */
+.watch-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.watch-button { display: inline-flex; align-items: center; gap: 6px; }
+.watch-saved {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.86rem; font-weight: 600;
+  color: var(--exa); background: var(--exa-tint); border-radius: 999px; padding: 6px 12px; align-self: flex-start;
+}
+.watching { display: flex; flex-direction: column; gap: 6px; }
+.watching-title {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 1.1rem; font-weight: 800;
+  color: var(--exa-ink); text-transform: none !important;
+}
+.watch-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.watch-item { padding: 12px 0; border-top: 1px solid var(--exa-grid); display: flex; flex-direction: column; gap: 6px; }
+.watch-q { margin: 0; font-weight: 700; color: var(--exa-ink); line-height: 1.35; }
+.watch-meta { margin: 0; font-family: var(--mono); font-size: 0.74rem; color: var(--exa-slate); }
+.watch-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.watch-nochange { margin: 0; font-size: 0.86rem; color: var(--exa-slate); }
+.watch-change {
+  background: var(--exa-tint); border: 1px solid var(--exa); border-radius: var(--r-md); padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.watch-change-title { margin: 0; font-weight: 800; color: var(--exa); }
+.watch-counts { font-weight: 500; color: var(--exa-slate); font-size: 0.86rem; }
+.watch-change .answer { margin: 0; }
+.watch-change .sources { border-top-color: rgb(24 64 237 / 0.25); }
+.watch-gone { margin: 0; font-size: 0.8rem; color: var(--exa-slate); }
+
+/* ---------- Help tab, compact: question first, one-row chips, folded sources, swipeable swaps ---------- */
+.butler-title { font-size: 1.7rem; margin: 4px 0 8px; }
+.butler .chips.chips-row {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px;
+  -webkit-mask: linear-gradient(90deg, #000 88%, #0000); mask: linear-gradient(90deg, #000 88%, #0000);
+}
+.butler .chips.chips-row::-webkit-scrollbar { display: none; }
+.butler .chips.chips-row .chip { flex: none; white-space: nowrap; }
+.butler-answer { scroll-margin-top: 12px; }
+.sources-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 4px; }
+.sources-fold > summary::-webkit-details-marker { display: none; }
+.sources-fold > summary::after { content: "▾"; color: var(--exa-slate); transition: transform 0.2s var(--ease); }
+.sources-fold[open] > summary::after { transform: rotate(180deg); }
+.nudge.compact { padding-top: 14px; padding-bottom: 14px; }
+.nudge.compact .button { margin-top: 2px; }
+.swaps .swap-list {
+  flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin: 4px -4px 0; padding: 0 4px 4px;
+}
+.swaps .swap-list::-webkit-scrollbar { display: none; }
+.swaps .swap { flex: 0 0 84%; scroll-snap-align: start; }
+.watching-lede { margin: 0; font-size: 0.85rem; }
+.watch-change .sources-fold > summary { min-height: 36px; margin-top: 0; }
+.watch-actions .button { min-height: 40px; }
+.answer.clamped {
+  display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden;
+}
+.read-more { align-self: flex-start; margin-top: -4px; }
+.draft-fold > summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 2px; min-height: 44px; justify-content: center; }
+.draft-fold > summary::-webkit-details-marker { display: none; }
+.draft-fold > summary .draft-subject { font-weight: 700; }
+.draft-fold > summary::after { content: "Tap to review ▾"; font-size: 0.8rem; color: var(--muted); }
+.draft-fold[open] > summary::after { content: "▴"; }
+.draft-fold .draft-text { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; margin: 8px 0; }

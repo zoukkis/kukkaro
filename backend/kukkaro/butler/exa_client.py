@@ -53,23 +53,33 @@ def _cache_path(key: dict):
 
 def search(query: str, domains: list[str] | None = None, num_results: int = 5, search_type: str = "auto",
            highlights_chars: int = 1200, max_age_h: float = CACHE_MAX_AGE_H,
-           exclude: list[str] | None = None) -> dict[str, Any]:
+           exclude: list[str] | None = None, start_published_date: str | None = None,
+           text_chars: int = 0) -> dict[str, Any]:
     """Returns {query, domains, results: [{title, url, published_date, image, highlights[]}], cached, seconds}.
     Errors come back as {"error": ...} with no results, never raised. Exa allows include OR exclude
-    domains, so `exclude` only applies when `domains` is empty."""
+    domains, so `exclude` only applies when `domains` is empty. `start_published_date` (ISO date) keeps only
+    pages published since then (the watchlist's "what's new" search); `max_age_h=0` skips the cache;
+    `text_chars` > 0 also returns the page text (the watchlist fingerprints pages by it)."""
     exclude = None if domains else exclude
     key = {"q": query.strip(), "d": sorted(domains or []), "n": num_results, "t": search_type, "h": highlights_chars, "v": 2}
     if exclude:
         key["x"] = sorted(exclude)
+    if start_published_date:
+        key["s"] = start_published_date
+    if text_chars:
+        key["tc"] = text_chars
+    contents: dict[str, Any] = {"highlights": {"max_characters": highlights_chars}}
+    if text_chars:
+        contents["text"] = {"max_characters": text_chars}
     path = _cache_path(key)
-    if path.exists() and (time.time() - path.stat().st_mtime) < max_age_h * 3600:
+    if max_age_h > 0 and path.exists() and (time.time() - path.stat().st_mtime) < max_age_h * 3600:
         data = json.loads(path.read_text(encoding="utf-8"))
         return {**data, "cached": True, "seconds": 0.0}
     t0 = time.monotonic()
     try:
         resp = _exa().search(
             query.strip(), type=search_type, num_results=num_results, include_domains=domains or None,
-            exclude_domains=exclude or None, user_location="FI", contents={"highlights": {"max_characters": highlights_chars}}, timeout=TIMEOUT_S)
+            exclude_domains=exclude or None, start_published_date=start_published_date or None, user_location="FI", contents=contents, timeout=TIMEOUT_S)
     except Exception as e:
         key_s = os.environ.get("EXA_API_KEY") or ""
         msg = f"{type(e).__name__}: {str(e).replace(key_s, '<key>') if key_s else e}"[:300]
@@ -78,7 +88,8 @@ def search(query: str, domains: list[str] | None = None, num_results: int = 5, s
                 "seconds": round(time.monotonic() - t0, 2)}
     results = [{"title": (r.title or r.url or "").strip(), "url": r.url, "published_date": r.published_date,
                 "image": getattr(r, "image", None),  # the page's preview picture (a product photo on S-kaupat)
-                "highlights": [h.strip() for h in (r.highlights or []) if h and h.strip()]}
+                "highlights": [h.strip() for h in (r.highlights or []) if h and h.strip()],
+                **({"text": getattr(r, "text", None) or ""} if text_chars else {})}
                for r in resp.results if getattr(r, "url", None)]
     data = {"query": query, "domains": domains or [], "results": results}
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

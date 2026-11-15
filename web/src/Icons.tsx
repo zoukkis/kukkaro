@@ -80,3 +80,6 @@ export const Mark = ({ size = 28 }: P) => (
     <circle cx="32" cy="38" r="4" fill="var(--mark-bg)" />
   </svg>
 );
+
+export const IconBell = ({ size = 18 }: P) =>
+  svg(size, <><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5Z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></>);

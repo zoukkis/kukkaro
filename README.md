@@ -54,6 +54,8 @@ cd ../web && npm install && npm run dev
   Vero, Energy Authority, Finnish consumer authorities); one cited source per fact, shown under the
   answer; next-step checklist and an optional draft message; the user makes the final call.
 - **Privacy:** only an anonymised question leaves the trusted zone (gateway in `coach/privacy.py`).
+- **Watchlist:** save a Butler question ("Watch this") and Kukkaro re-checks it with Exa (the question
+  again + pages published since the last check), diffs the sources in code, and speaks up only when they change.
 - **Live:** works on questions the judges type; Butler eval: 3/3 demo tasks and 10/10 unseen phrasings
   (incl. Finnish). Code: `backend/kukkaro/butler/`.
 
