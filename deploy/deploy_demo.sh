@@ -23,7 +23,7 @@ echo "== build web app"
 tar -czf "$TMP/web-dist.tgz" -C "$ROOT/web/dist" .
 
 echo "== server .env (selected keys only)"
-grep -E '^(LLM_PROVIDER|GEMINI_API_KEY|GEMINI_MODEL|GEMMA_MODEL|GEMMA_BASE_URL|GEMMA_API_KEY|EXA_API_KEY|DEMO_CUSTOMER_ID|DEMO_TODAY)=' "$ROOT/.env" > "$TMP/kukkaro.env"
+grep -E '^(LLM_PROVIDER|GEMINI_API_KEY|GEMINI_MODEL|GEMMA_MODEL|GEMMA_BASE_URL|GEMMA_API_KEY|VERDA_INFERENCE_BASE_URL|VERDA_INFERENCE_API_KEY|FALLBACK_MODEL|EXA_API_KEY|DEMO_CUSTOMER_ID|DEMO_TODAY)=' "$ROOT/.env" > "$TMP/kukkaro.env"
 echo "DATA_DIR=../data" >> "$TMP/kukkaro.env"
 echo "   $(cut -d= -f1 "$TMP/kukkaro.env" | tr '\n' ' ')"
 
