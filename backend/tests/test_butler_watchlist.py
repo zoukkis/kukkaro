@@ -164,3 +164,37 @@ def test_check_all(world):
     world["pages"] = world["pages"][:1]
     rows = watchlist.check_all()
     assert rows == [{"watch_id": a["id"], "changed": True, "new": 0, "gone": 1, "updated": 0, "error": None}]
+
+
+def test_watchlist_posts_are_rate_limited(data_env, monkeypatch):
+    """The real RATE_LIMITS rules (api/main.py): both watchlist POSTs call paid APIs, so they are limited per
+    visitor, one bucket per rule (cycling watch ids doesn't reset it). Paid calls are stubbed here."""
+    from kukkaro.api import main
+    calls = {"watch": 0, "check": 0}
+
+    def fake_watch(cid, task):
+        calls["watch"] += 1
+        return {"id": "a" * 12, "task": task}
+
+    def fake_check(wid):
+        calls["check"] += 1
+        return {"changed": False}
+
+    monkeypatch.setattr(watchlist, "watch", fake_watch)
+    monkeypatch.setattr(watchlist, "check", fake_check)
+    monkeypatch.setenv("RATE_LIMIT", "1")
+    watch_limit = main.RATE_LIMITS[r"^/api/customers/[^/]+/watchlist$"][0]
+    check_limit = main.RATE_LIMITS[r"^/api/watchlist/[^/]+/check$"][0]
+    main._hits.clear()
+    h = {"x-forwarded-for": "203.0.113.7"}
+    with TestClient(main.app) as c:
+        saves = [c.post("/api/customers/C1/watchlist", json={"task": TASK}, headers=h).status_code
+                 for _ in range(watch_limit + 1)]
+        checks = [c.post(f"/api/watchlist/{i:012x}/check", headers=h).status_code for i in range(check_limit + 1)]
+        assert c.get("/api/customers/C1/watchlist", headers=h).status_code == 200          # GETs are never limited
+        other = c.post("/api/watchlist/aaaaaaaaaaaa/check", headers={"x-forwarded-for": "203.0.113.8"}).status_code
+    main._hits.clear()
+    assert saves == [200] * watch_limit + [429]
+    assert checks == [200] * check_limit + [429]                                           # different ids, one bucket
+    assert other == 200                                                                    # per visitor
+    assert calls == {"watch": watch_limit, "check": check_limit + 1}                       # 429s never reach Exa/LLM
