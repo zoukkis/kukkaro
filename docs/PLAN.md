@@ -73,7 +73,7 @@ One customer, end to end, ugly is fine.
 |---|---|
 | 05:00 | **Feature freeze.** Bug fixes only. |
 | 05:00–07:30 | Record videos (see docs/VIDEO.md): Kukkaro ≤ 2:00, Butler ≤ 2:00. Upload as public/unlisted YouTube or Vimeo. |
-| 07:30–08:30 | Pitch deck PDF (S-Bank version + Exa version), post Verda summary in Verda's Discord channel |
+| 07:30–08:30 | Pitch deck PDF (S-Bank version + Exa version) |
 | 08:30–09:15 | Fill both submissions completely (see docs/COMPLIANCE.md), set **FINAL** |
 | 09:30 | Buffer. Everything must be FINAL. |
 | 10:00 | Deadline |

@@ -50,7 +50,7 @@ Sources: Junction 2026 Participant Guide and the challenge pages on the Junction
 - [ ] Final approval left to the user
 
 **Verda Compute Track (tech)**
-- [ ] **Minimum requirement: document the process AND post a link to a summary in Verda's Discord channel**
+- [ ] **Minimum requirement (challenge page, re-checked 15 Nov 03:30): document your process, and submit via Junction Platform → Challenges → Verda Compute Track** (tick Verda on the submission). No Discord post is required; docs/DECISIONS.md is the process log.
 - [ ] Explain which Verda products were used and why; show a path to scale
 
 **Gemini API (tech)**
