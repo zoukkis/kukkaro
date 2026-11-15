@@ -72,13 +72,39 @@ export const IconHouse = ({ size = 22 }: P) =>
 export const IconClose = ({ size = 20 }: P) => svg(size, <><path d="M6 6l12 12M18 6 6 18" /></>);
 
 // The brand mark: a small coin purse ("kukkaro" is Finnish for purse).
-export const Mark = ({ size = 28 }: P) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden focusable="false">
-    <rect width="64" height="64" rx="18" fill="var(--mark-bg)" />
-    <path d="M20 26c0-6 5-10 12-10s12 4 12 10" fill="none" stroke="var(--mark-fg)" strokeWidth="4" strokeLinecap="round" />
-    <rect x="14" y="26" width="36" height="24" rx="8" fill="var(--mark-fg)" />
-    <circle cx="32" cy="38" r="4" fill="var(--mark-bg)" />
+// The unlocked lock that is the "A" of KUKKARO: the shackle uses the two-stripe line of S-Group's S symbol,
+// and one leg is lifted out of the body. `simple` drops the keyhole slot for small sizes.
+export const LockA = ({ fg = "currentColor", cut = "#ffffff", simple = false, width = "0.5em", height = "0.7em" }:
+  { fg?: string; cut?: string; simple?: boolean; width?: string | number; height?: string | number }) => (
+  <svg width={width} height={height} viewBox="0 0 60 84" aria-hidden focusable="false" style={{ flex: "none" }}>
+    <path d="M12 52 V28 A18 18 0 0 1 48 28 V38" fill="none" stroke={fg} strokeWidth={simple ? 16 : 15} />
+    <path d="M12 52 V28 A18 18 0 0 1 48 28 V38" fill="none" stroke={cut} strokeWidth={simple ? 5 : 4} />
+    <rect x="0" y="46" width="60" height="38" rx="3" fill={fg} />
+    {simple ? (
+      <circle cx="30" cy="64" r="7" fill={cut} />
+    ) : (
+      <>
+        <circle cx="30" cy="61" r="5.5" fill={cut} />
+        <rect x="27.5" y="63" width="5" height="11" rx="1.5" fill={cut} />
+      </>
+    )}
   </svg>
+);
+
+// KUKK + lock + RO, in upright condensed capitals (Bebas Neue stands in for S-Group's own type).
+export const Wordmark = () => (
+  <span className="wordmark" role="img" aria-label="Kukkaro">
+    <span aria-hidden>KUKK</span>
+    <LockA fg="var(--green)" cut="var(--surface)" simple />
+    <span aria-hidden>RO</span>
+  </span>
+);
+
+// App icon / chat avatar: the lock on S-market green.
+export const Mark = ({ size = 28 }: P) => (
+  <span className="mark" style={{ width: size, height: size, borderRadius: size * 0.26 }} aria-hidden>
+    <LockA fg="#ffffff" cut="var(--green)" simple width={size * 0.48} height={size * 0.67} />
+  </span>
 );
 
 export const IconBell = ({ size = 18 }: P) =>
