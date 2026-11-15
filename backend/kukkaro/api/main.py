@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import re
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -37,7 +38,14 @@ DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localho
 state: dict = {"data_loaded": False, "routers": []}
 
 # POST path prefix -> (requests, window in seconds) per visitor IP. Set RATE_LIMIT=0 to turn off.
-RATE_LIMITS: dict[str, tuple[int, int]] = {"/api/chat": (30, 600), "/api/butler": (15, 600)}
+# A key starting with "^" is a regular expression (for paths with ids); otherwise it is a path prefix.
+# Every endpoint that calls a paid API (LLM or Exa) must be listed here.
+RATE_LIMITS: dict[str, tuple[int, int]] = {
+    "/api/chat": (30, 600),
+    "/api/butler": (15, 600),
+    r"^/api/customers/[^/]+/watchlist$": (10, 600),   # runs the Butler once
+    r"^/api/watchlist/[^/]+/check$": (20, 600),       # two Exa searches + Gemini on a change
+}
 RATE_LIMIT_TEXT = "The public demo allows a limited number of questions per visitor. Please wait a few minutes."
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
@@ -69,11 +77,12 @@ async def rate_limit(request: Request, call_next):
     """Sliding-window limit per visitor on the LLM endpoints. Behind Caddy, the first
     X-Forwarded-For entry is the real visitor (Caddy does not trust a client-sent header)."""
     path = request.url.path
-    rule = next((v for k, v in RATE_LIMITS.items() if path.startswith(k)), None)
+    key = next((k for k in RATE_LIMITS if (re.match(k, path) if k.startswith("^") else path.startswith(k))), None)
+    rule = RATE_LIMITS.get(key) if key else None
     if request.method == "POST" and rule and os.environ.get("RATE_LIMIT", "1") != "0":
         ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (request.client.host if request.client else "?")
         limit, window = rule
-        q, now = _hits[(ip, path)], time.monotonic()
+        q, now = _hits[(ip, key)], time.monotonic()  # one bucket per rule, so cycling ids doesn't reset it
         while q and now - q[0] > window:
             q.popleft()
         if len(q) >= limit:
