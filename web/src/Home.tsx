@@ -8,6 +8,7 @@ import { formatDate, formatEur, formatMonth } from "./format";
 import { IconArrow, IconReceipt, IconShield, IconSpark } from "./Icons";
 
 const RECENT = 8;
+const SHOWN = 4; // one phone screen: the rest behind "See all"
 
 // "ACC002979" -> "•••• 2979": only the last four characters are ever shown.
 const maskAccount = (id: string) => `•••• ${id.slice(-4)}`;
@@ -17,6 +18,7 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
   const [split, setSplit] = useState<Summary | null>(null);
   const [error, setError] = useState(false);
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     api.transactions(CUSTOMER_ID, { limit: RECENT }).then((p) => setTx(p.items)).catch(() => setError(true));
@@ -30,7 +32,7 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
 
   return (
     <div className="page home">
-      <h1 className="home-greeting">Good to see you</h1>
+      <h1 className="sr-only">Home</h1>
 
       {error && <p className="status">Couldn't load your account. Please try again in a moment.</p>}
 
@@ -41,9 +43,8 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
             <span className="account-name">Current account</span>
             <span className="account-number mono">{maskAccount(latest.bank_account_id)}</span>
           </div>
-          <span className="account-label">Balance</span>
           <span className="account-balance num">{formatEur(latest.balance_after_eur)}</span>
-          <span className="account-asof">After the latest transaction, {formatDate(latest.tx_date)}</span>
+          <span className="account-asof">Balance after the latest transaction, {formatDate(latest.tx_date)}</span>
         </section>
       )}
 
@@ -51,13 +52,12 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
         <section className="insight-card reveal-in" aria-label="Kukkaro insight">
           <span className="insight-icon" aria-hidden><IconSpark /></span>
           <div className="insight-body">
-            <p className="insight-kicker">Kukkaro insight · {formatMonth(split.month)}</p>
             <p className="insight-text">
-              Kukkaro found <strong className="num">{formatEur(hiddenEveryday)}</strong> of everyday spending in your
-              groceries.
+              <strong className="num">{formatEur(hiddenEveryday)}</strong> of everyday spending hid in your groceries
+              in {formatMonth(split.month)}.
             </p>
             <button className="link-button" onClick={onOpenBaskets}>
-              See what was in your baskets <IconArrow size={14} />
+              See your baskets <IconArrow size={14} />
             </button>
           </div>
         </section>
@@ -67,7 +67,7 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
         <section className="recent" aria-label="Recent transactions">
           <h2 className="section-heading">Recent transactions</h2>
           <ul className="tx-list card">
-            {tx.map((t) => {
+            {tx.slice(0, showAll ? undefined : SHOWN).map((t) => {
               const grocery = t.category === "Groceries";
               const body = (
                 <>
@@ -103,12 +103,16 @@ export default function Home({ onOpenBaskets }: { onOpenBaskets: () => void }) {
               );
             })}
           </ul>
+          {tx.length > SHOWN && (
+            <button className="link-button see-all" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show fewer" : `See all ${tx.length}`}
+            </button>
+          )}
         </section>
       )}
 
       <p className="privacy-line">
-        <IconShield size={14} /> Your data stays private: Kukkaro reads it only to answer you, and nothing personal is
-        sent to web searches.
+        <IconShield size={14} /> Private: nothing personal goes to web searches.
       </p>
     </div>
   );
