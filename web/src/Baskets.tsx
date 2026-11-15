@@ -44,7 +44,9 @@ export default function Baskets() {
   return (
     <div className="page">
       <section className="hero-card rise" style={stagger(0)}>
-        <span className="eyebrow light">Safe to spend this week</span>
+        <span className="eyebrow light" title="After the regular essentials still due before payday">
+          Safe to spend this week
+        </span>
         <span className="hero-amount">{formatEur(safe.this_week_eur)}</span>
         <div className="hero-facts">
           <span>
@@ -54,7 +56,6 @@ export default function Baskets() {
             <strong>{formatEur(safe.amount_eur)}</strong> until payday {formatDate(safe.until_date)}
           </span>
         </div>
-        <span className="hero-note">After the regular essentials still due before payday.</span>
       </section>
 
       <section className="card rise" style={stagger(1)}>
@@ -94,9 +95,8 @@ export default function Baskets() {
                   <li key={b.basket}>
                     <button className="basket-row" onClick={() => setOpen(b.basket)}>
                       <span className={`swatch ${b.basket}`} aria-hidden>{info.emoji}</span>
-                      <span className="basket-name">
+                      <span className="basket-name" title={info.hint}>
                         <strong>{info.label}</strong>
-                        <span className="muted">{info.hint}</span>
                       </span>
                       <span className="basket-amount">
                         <strong className="num">{formatEur(b.total_eur)}</strong>
@@ -160,9 +160,11 @@ export default function Baskets() {
         )}
       </section>
 
-      <section className="card rise" style={stagger(2)}>
-        <p className="eyebrow">Where it went</p>
-        <h2 className="card-title">Top categories</h2>
+      <details className="card fold-card rise" style={stagger(2)}>
+        <summary>
+          <span className="card-title">Top categories</span>
+          <span className="muted">Income {formatEur(summaries.card.income_eur)}</span>
+        </summary>
         <ul className="cat-list">
           {summaries.card.top_categories.map((c) => (
             <li key={c.category}>
@@ -183,7 +185,7 @@ export default function Baskets() {
             <strong className="num">{formatEur(summaries.card.balance_eur)}</strong>
           </div>
         </div>
-      </section>
+      </details>
     </div>
   );
 }

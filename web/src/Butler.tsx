@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { api, CUSTOMER_ID, type BillSuggestion, type ButlerResponse, type ButlerSource, type Product, type SwapsResponse, type Watch } from "./api";
 import { useOrderBasket } from "./basket";
 import { formatDate, formatEur, formatMonth } from "./format";
-import { IconBell, IconCopy, IconExternal, IconMail, IconReceipt, IconSend, IconSpark, IconTrend } from "./Icons";
+import { IconBell, IconClose, IconCopy, IconExternal, IconMail, IconReceipt, IconSend, IconSpark, IconTrend } from "./Icons";
 
 // The three demo tasks from backend/kukkaro/butler/AGENTS.md.
 const EXAMPLES = [
@@ -195,20 +195,20 @@ export default function Butler() {
       )}
 
       {cards.map((c) => (
-        <section key={c.category} className="nudge compact rise">
+        <section key={c.category} className="nudge-row rise">
           <span className="nudge-icon"><IconTrend /></span>
-          <div className="nudge-body">
+          <div className="nudge-text">
             <h2 className="nudge-title">
               {c.title} <span className="up num">+{c.change_pct}%</span>
             </h2>
-            <p className="muted">
-              {formatMonth(c.latest_month)}: <strong className="num">{formatEur(c.latest_month_eur)}</strong> vs a typical
-              month of <strong className="num">{formatEur(c.typical_monthly_eur)}</strong>
+            <p className="muted small">
+              {formatMonth(c.latest_month)}: <strong className="num">{formatEur(c.latest_month_eur)}</strong> vs{" "}
+              <strong className="num">{formatEur(c.typical_monthly_eur)}</strong> typical
             </p>
-            <button className="button primary small-button" disabled={busy} onClick={() => { setInput(c.task); run(c.task); }}>
-              <IconSpark /> Ask the Butler why
-            </button>
           </div>
+          <button className="button primary small-button" disabled={busy} onClick={() => { setInput(c.task); run(c.task); }}>
+            <IconSpark size={15} /> Why?
+          </button>
         </section>
       ))}
 
@@ -257,12 +257,14 @@ function Watching({ watches, onChange, onRemove }: {
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(new Set()); // checked in this visit: open the change card
 
   async function check(w: Watch) {
     setBusy(w.id);
     setFailed(null);
     try {
       const r = await api.checkWatch(w.id);
+      setFresh((s) => new Set(s).add(w.id));
       onChange({ ...w, last_result: r, last_checked_at: r.error && !r.changed ? w.last_checked_at : r.checked_at });
     } catch {
       setFailed(w.id);
@@ -273,8 +275,9 @@ function Watching({ watches, onChange, onRemove }: {
 
   return (
     <section className="watching card exa rise" aria-label="Watching">
-      <h2 className="watching-title"><IconBell /> Watching</h2>
-      <p className="muted watching-lede">Re-checked with Exa. You only hear about changes.</p>
+      <h2 className="watching-title" title="Re-checked with Exa. You only hear about changes.">
+        <IconBell size={17} /> Watching
+      </h2>
       <ul className="watch-list">
         {watches.map((w) => {
           const r = w.last_result;
@@ -282,30 +285,33 @@ function Watching({ watches, onChange, onRemove }: {
           const cites = r ? r.sources.map((s) => ({ n: s.n ?? 0, title: s.title, url: s.url })) : [];
           return (
             <li key={w.id} className="watch-item">
-              <p className="watch-q">{w.task}</p>
-              <p className="watch-meta">Last checked {formatDate(w.last_checked_at.slice(0, 10))}</p>
-              <div className="watch-actions">
-                <button className="button ghost" disabled={busy === w.id} onClick={() => check(w)}>
+              <div className="watch-head">
+                <div className="watch-text">
+                  <p className="watch-q">{w.task}</p>
+                  <p className="watch-meta">
+                    Last checked {formatDate(w.last_checked_at.slice(0, 10))}
+                    {r && !r.changed && (r.error ? " · couldn't check" : " · No changes")}
+                  </p>
+                </div>
+                <button className="button ghost small-button" disabled={busy === w.id} onClick={() => check(w)}>
                   {busy === w.id ? "Checking…" : "Check now"}
                 </button>
-                <button className="link-button"
+                <button className="icon-button" aria-label="Stop watching" title="Stop watching"
                   onClick={() => api.unwatch(w.id).then(() => onRemove(w.id)).catch(() => setFailed(w.id))}>
-                  Stop watching
+                  <IconClose size={16} />
                 </button>
               </div>
               {failed === w.id && <p className="muted">Couldn't reach Kukkaro. Please try again.</p>}
-              {r && r.error && !r.changed && <p className="muted">Couldn't check the sources right now.</p>}
-              {r && !r.error && !r.changed && <p className="watch-nochange">No changes</p>}
               {r && r.changed && (
-                <div className="watch-change reveal-in">
-                  <p className="watch-change-title">
+                <details className="watch-change reveal-in" open={fresh.has(w.id)}>
+                  <summary className="watch-change-title">
                     {n} {n === 1 ? "source" : "sources"} changed
                     <span className="watch-counts">
                       {r.new_sources.length > 0 && ` · ${r.new_sources.length} new`}
                       {r.updated_sources.length > 0 && ` · ${r.updated_sources.length} updated`}
                       {r.gone_sources.length > 0 && ` · ${r.gone_sources.length} gone`}
                     </span>
-                  </p>
+                  </summary>
                   {r.summary && <p className="answer">{withCitations(r.summary, cites, `w-${w.id}-src`)}</p>}
                   {r.sources.length > 0 && (
                     <details className="sources-fold">
@@ -332,7 +338,7 @@ function Watching({ watches, onChange, onRemove }: {
                   {r.gone_sources.length > 0 && (
                     <p className="watch-gone">No longer found: {r.gone_sources.map((g) => g.site).join(", ")}</p>
                   )}
-                </div>
+                </details>
               )}
             </li>
           );
@@ -414,13 +420,14 @@ function Swaps() {
   if (shown.length === 0) return null;
 
   return (
-    <section className="swaps card rise" aria-label="Store-brand swaps">
-      <p className="swaps-kicker"><IconReceipt size={15} /> From your receipts</p>
-      <h2 className="swaps-title">Same food, smaller bill</h2>
-      <p className="muted">
-        S-Group's own brands would save you <strong className="num">{formatEur(data.monthly_saving_eur)}</strong> a
-        month. Swipe for the swaps.
-      </p>
+    <details className="swaps card fold-card rise" aria-label="Store-brand swaps">
+      <summary>
+        <span className="swaps-head">
+          <span className="swaps-kicker"><IconReceipt size={15} /> From your receipts</span>
+          <span className="swaps-title">Same food, smaller bill</span>
+        </span>
+        <span className="swaps-save num">−{formatEur(data.monthly_saving_eur)}/mo</span>
+      </summary>
       <ul className="swap-list">
         {shown.map((s) => {
           const p = s.product!;
@@ -450,7 +457,7 @@ function Swaps() {
         Savings come from your synthetic receipts ({formatMonth(data.start.slice(0, 7))}–{formatMonth(data.end.slice(0, 7))});
         prices and pictures are read from the S-kaupat product pages.
       </p>
-    </section>
+    </details>
   );
 }
 

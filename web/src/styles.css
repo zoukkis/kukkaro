@@ -1,24 +1,26 @@
-/* Kukkaro: S-Bank × Exa.
-   The app is the bank side: deep green, mint pill buttons, heavy condensed headlines, warm accents.
+/* Kukkaro: S-market colours × Exa.
+   The app side uses S-market's palette (s-kaupat.fi: green #007841, dark green #004628, mints #ebf7ec / #d2fce5,
+   ink #1f1f1f, greys #f5f5f5 / #e6e6e6) and a stand-in for its type: S-Group's own S Bonus fonts are
+   proprietary, so headlines use condensed Archivo and text uses Inter.
    Everything that shows where information comes from (How I got this, the Butler, sources) speaks
    Exa's language: JetBrains Mono labels, Exa blue, thin grid lines, numbered steps.
    Style inspiration only: no logos, no claim of endorsement (docs/COMPLIANCE.md). */
 :root {
   /* bank side */
-  --bg: #f5f8f7;
+  --bg: #f5f5f5;
   --surface: #ffffff;
   --green-ink: #004628;
-  --green: #00aa46;
-  --mint: #91fa9b;
-  --mint-soft: #dcfce0;
+  --green: #007841;
+  --mint: #d2fcd5;
+  --mint-soft: #ebf7ec;
   --cream: #fff1d8;
   --pink: #ffc9d7;
   --pink-ink: #b8255a;
   --orange: #ffa200;
   --orange-ink: #8f5600;
   --text: #1f1f1f;
-  --muted: #5f6b66;
-  --line: #e3e9e6;
+  --muted: #5c5c5c;
+  --line: #e6e6e6;
   /* Exa side */
   --exa: #1840ed;
   --exa-tint: #e4eaff;
@@ -35,9 +37,9 @@
   --everyday-soft: #ffe1e9;
   /* brand mark */
   --mark-bg: #004628;
-  --mark-fg: #91fa9b;
+  --mark-fg: #d2fcd5;
   --display: "Archivo", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
-  --sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --r-xl: 24px;
   --r-lg: 18px;
@@ -69,21 +71,14 @@ a { color: inherit; }
 .dim { opacity: 0.65; font-weight: 500; }
 .mono { font-family: var(--mono); }
 
-/* ---------- Stage: Exa's blueprint grid around an S-Bank phone ---------- */
+/* ---------- Stage: a calm S-market backdrop around the phone ---------- */
 .stage { min-height: 100%; display: grid; place-items: center; position: relative; }
 .stage::before {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background:
-    radial-gradient(40rem 30rem at 50% 45%, var(--exa-panel), transparent 70%),
-    linear-gradient(var(--exa-grid) 1px, transparent 1px) 0 0 / 40px 40px,
-    linear-gradient(90deg, var(--exa-grid) 1px, transparent 1px) 0 0 / 40px 40px,
-    var(--exa-panel);
-}
-.stage::after {
-  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  background:
-    radial-gradient(36rem 26rem at 8% 92%, rgb(145 250 155 / 0.35), transparent 70%),
-    radial-gradient(32rem 24rem at 95% 6%, rgb(24 64 237 / 0.12), transparent 70%);
+    radial-gradient(42rem 30rem at 12% 88%, rgb(210 252 213 / 0.9), transparent 70%),
+    radial-gradient(36rem 26rem at 92% 8%, rgb(235 247 236 / 1), transparent 70%),
+    #f5f5f5;
 }
 .phone {
   position: relative; z-index: 1;
@@ -96,8 +91,8 @@ a { color: inherit; }
   .phone {
     height: min(calc(100dvh - 48px), 900px);
     border-radius: 42px;
-    border: 1px solid var(--exa-grid);
-    box-shadow: 0 30px 80px -30px rgb(21 22 26 / 0.35), 0 0 0 8px #ffffff, 0 0 0 9px var(--exa-grid);
+    border: 1px solid var(--line);
+    box-shadow: 0 30px 80px -30px rgb(0 70 40 / 0.35), 0 0 0 8px #ffffff, 0 0 0 9px var(--line);
   }
 }
 .skip {
@@ -175,8 +170,8 @@ a { color: inherit; }
   transition: background-color 0.2s var(--ease), transform 0.12s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s;
 }
 .button:active { transform: scale(0.98); }
-.button.primary { background: var(--mint); color: var(--green-ink); }
-.button.primary:hover { box-shadow: 0 0 0 4px rgb(145 250 155 / 0.45); }
+.button.primary { background: var(--green); color: #ffffff; }
+.button.primary:hover { background: var(--green-ink); box-shadow: 0 0 0 4px rgb(0 120 65 / 0.18); }
 .button.ghost { background: var(--surface); border-color: var(--green-ink); color: var(--green-ink); }
 .button.ghost:hover { background: var(--mint-soft); }
 .button:disabled { opacity: 0.5; }
@@ -279,13 +274,13 @@ a { color: inherit; }
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s;
 }
 .composer input::placeholder { color: var(--muted); }
-.composer input:focus { outline: none; border-color: var(--green-ink); background: var(--surface); box-shadow: 0 0 0 3px rgb(145 250 155 / 0.6); }
+.composer input:focus { outline: none; border-color: var(--green-ink); background: var(--surface); box-shadow: 0 0 0 3px rgb(0 120 65 / 0.22); }
 .send {
   flex: none; width: 50px; height: 50px; border-radius: 50%; border: 0;
   background: var(--mint); color: var(--green-ink); display: grid; place-items: center;
   transition: transform 0.12s var(--ease), opacity 0.2s, box-shadow 0.2s;
 }
-.send:hover:not(:disabled) { box-shadow: 0 0 0 4px rgb(145 250 155 / 0.45); }
+.send:hover:not(:disabled) { box-shadow: 0 0 0 4px rgb(0 120 65 / 0.18); }
 .send:active:not(:disabled) { transform: scale(0.95); }
 .send:disabled { opacity: 0.4; }
 
@@ -633,7 +628,7 @@ a { color: inherit; }
 .road[data-stage="1"] .road-bot { left: 14%; }
 .road[data-stage="2"] .road-bot { left: 52%; }
 .road.arrived .road-bot { left: calc(100% - 118px); animation: none; }
-.road.arrived .road-home { box-shadow: 0 0 0 6px rgb(145 250 155 / 0.45); }
+.road.arrived .road-home { box-shadow: 0 0 0 6px rgb(0 120 65 / 0.18); }
 @keyframes trundle { to { transform: translateY(-2px); } }
 .tracking .stages li.done .stage-n, .tracking .stages li.now .stage-n { color: var(--green); }
 .tracking .stages li { border-top-color: var(--line); }
@@ -763,3 +758,51 @@ a { color: inherit; }
 .draft-fold > summary::after { content: "Tap to review ▾"; font-size: 0.8rem; color: var(--muted); }
 .draft-fold[open] > summary::after { content: "▴"; }
 .draft-fold .draft-text { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; margin: 8px 0; }
+
+/* ---------- Compact screens: about one phone screen per tab ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.page { gap: 12px; padding-top: 12px; }
+.account-card { gap: 2px; padding-top: 16px; padding-bottom: 16px; }
+.account-balance { font-size: 2.1rem; }
+.insight-card { padding-top: 12px; padding-bottom: 12px; }
+.insight-text { font-size: 0.95rem; }
+.recent .section-heading { margin-bottom: 6px; }
+.tx-row, .tx-button { min-height: 54px; padding: 6px 0; }
+.see-all { align-self: center; margin-top: 6px; }
+.privacy-line { padding: 0 4px 8px; }
+.hero-card { gap: 4px; padding-top: 16px; padding-bottom: 16px; }
+.hero-amount { font-size: 2.3rem; }
+.basket-row { min-height: 52px; }
+.fold-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
+.fold-card > summary::-webkit-details-marker { display: none; }
+.fold-card > summary::after { content: "▾"; color: var(--muted); transition: transform 0.2s var(--ease); }
+.fold-card[open] > summary::after { transform: rotate(180deg); }
+.fold-card[open] > summary { margin-bottom: 8px; }
+.fold-card .card-title { font-size: 1.1rem; }
+.swaps-head { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.swaps.fold-card .swaps-title { font-size: 1.15rem; }
+.swaps-save { font-weight: 800; color: var(--green); white-space: nowrap; }
+.nudge-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1);
+}
+.nudge-row .nudge-icon { width: 36px; height: 36px; }
+.nudge-text { flex: 1; min-width: 0; }
+.nudge-row .nudge-title { font-size: 1rem; line-height: 1.25; }
+.nudge-row .small-button { min-height: 40px; }
+.watching { gap: 2px; padding-top: 12px; padding-bottom: 6px; }
+.watching-title { font-size: 1rem; }
+.watch-item { padding: 8px 0; gap: 6px; }
+.watch-head { display: flex; align-items: center; gap: 8px; }
+.watch-text { flex: 1; min-width: 0; }
+.watch-q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95rem; }
+.watch-head .small-button { min-height: 38px; }
+.icon-button {
+  flex: none; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: none; color: var(--muted);
+}
+.icon-button:hover { background: var(--mint-soft); color: var(--green-ink); }
+.watch-change > summary { cursor: pointer; list-style: none; }
+.watch-change > summary::-webkit-details-marker { display: none; }
+.watch-change > summary::after { content: " ▾"; color: var(--exa); }
+.watch-change[open] > summary::after { content: " ▴"; }
