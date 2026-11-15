@@ -6,7 +6,7 @@ import Baskets from "./Baskets";
 import Butler from "./Butler";
 import OrderCard from "./Order";
 import { OrderBasketProvider, useOrderBasket } from "./basket";
-import { IconAsk, IconBaskets, IconButler, IconClose, IconHouse, Mark, Robot } from "./Icons";
+import { IconAsk, IconBaskets, IconButler, IconClose, IconHouse, Robot, Wordmark } from "./Icons";
 
 type Tab = "home" | "baskets" | "chat" | "help";
 
@@ -33,8 +33,7 @@ function Shell() {
         <a className="skip" href="#main">Skip to content</a>
         <header className="topbar">
           <div className="brand">
-            <Mark size={30} />
-            <span className="wordmark">Kukkaro</span>
+            <Wordmark />
           </div>
           <span className="demo-flag" title="All data in this demo is synthetic">
             {USE_MOCK ? "Mock data" : "Synthetic demo data"}
