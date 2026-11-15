@@ -52,17 +52,20 @@ one of its reasons, and the demo's key moment is the "With receipts / Without re
 ```
 kukkaro/
 ├── AGENTS.md  CLAUDE.md  GEMINI.md  README.md  LICENSE  .env.example  .gitignore
-├── docs/          PLAN.md, COMPLIANCE.md, DECISIONS.md (log), VIDEO.md
+├── docs/          ARCHITECTURE.md (+ system-design.svg), PLAN.md, COMPLIANCE.md, DECISIONS.md (log), VIDEO.md
 ├── data/          raw/ and processed/ are gitignored; only README.md is committed
 ├── backend/       Python 3.11+, FastAPI, DuckDB
 │   └── kukkaro/
 │       ├── data/       loading, DuckDB views, baskets, metrics   (workstream DATA)
 │       ├── receipts/   synthetic receipt generator + provider     (workstream RECEIPTS)
 │       ├── coach/      LLM client, tools, prompts, /chat          (workstream COACH)
-│       ├── butler/     Exa agent, /butler                         (workstream BUTLER)
+│       ├── butler/     Exa agent, /butler, S-kaupat products      (workstream BUTLER)
+│       ├── orders/     grocery order plan, store-brand swaps      (concept demo)
 │       └── api/        FastAPI app, wires routers together        (owned by COACH)
-└── web/           React + Vite + TypeScript, mobile-first        (workstream WEB)
+├── web/           React + Vite + TypeScript, mobile-first        (workstream WEB)
+└── deploy/        Verda demo: deploy_demo.sh, remote_setup.sh (Caddy + systemd)
 ```
+Diagram and request flows: `docs/ARCHITECTURE.md`.
 
 **Core principle: the LLM never does arithmetic and never invents numbers.** Every number shown
 to the user comes from a deterministic Python function (a "tool") that queries DuckDB. The LLM
@@ -88,7 +91,8 @@ docs/DECISIONS.md). There is no model picker in the UI.
 - **Gateway:** `coach/privacy.py` checks every outgoing question in code. Only rounded or banded
   context leaves ("around 140 €", "age 20–25", "Espoo region").
 - **Public zone:** `butler/research.py` (Exa + Gemini) answers the anonymised question from web pages.
-  `POST /api/butler` uses the same gateway and worker.
+  `POST /api/butler` uses the same gateway and worker. Store-brand swaps search S-kaupat with a fixed
+  query from a static map (`butler/products.py` `TWIN_QUERIES`), never with customer text.
 - **Fallback:** if Gemma errors, times out or fails the number check, it gets one retry, then Gemini
   answers that turn and the UI shows "Backup model used". The backup sees the same data Gemma would.
 
