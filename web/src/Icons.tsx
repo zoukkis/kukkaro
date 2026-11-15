@@ -73,12 +73,12 @@ export const IconClose = ({ size = 20 }: P) => svg(size, <><path d="M6 6l12 12M1
 
 // The brand mark: a small coin purse ("kukkaro" is Finnish for purse).
 // The unlocked lock that is the "A" of KUKKARO: the shackle uses the two-stripe line of S-Group's S symbol,
-// and one leg is lifted out of the body. `simple` drops the keyhole slot for small sizes.
+// and the left leg is lifted out of the body (open on the left, so it reads as an A). `simple` drops the keyhole slot for small sizes.
 export const LockA = ({ fg = "currentColor", cut = "#ffffff", simple = false, width = "0.5em", height = "0.7em" }:
   { fg?: string; cut?: string; simple?: boolean; width?: string | number; height?: string | number }) => (
   <svg width={width} height={height} viewBox="0 0 60 84" aria-hidden focusable="false" style={{ flex: "none" }}>
-    <path d="M12 52 V28 A18 18 0 0 1 48 28 V38" fill="none" stroke={fg} strokeWidth={simple ? 16 : 15} />
-    <path d="M12 52 V28 A18 18 0 0 1 48 28 V38" fill="none" stroke={cut} strokeWidth={simple ? 5 : 4} />
+    <path d="M48 52 V28 A18 18 0 0 0 12 28 V38" fill="none" stroke={fg} strokeWidth={simple ? 16 : 15} />
+    <path d="M48 52 V28 A18 18 0 0 0 12 28 V38" fill="none" stroke={cut} strokeWidth={simple ? 5 : 4} />
     <rect x="0" y="46" width="60" height="38" rx="3" fill={fg} />
     {simple ? (
       <circle cx="30" cy="64" r="7" fill={cut} />
