@@ -1,8 +1,8 @@
 # User research: what people like and hate in similar products
 
 First pass, 14 Nov 2026 13:30, from public review pages and review summaries (sources at the end).
-Next pass: run `scripts/research/scrape_reviews.py` + `analyze_reviews.py` for counts per theme and
-add the numbers here. Only summaries here, never raw reviews or usernames.
+Only summaries here, never raw reviews or usernames. (A review scraper was drafted and removed unused on
+15 Nov: app store terms restrict scraping, so this file relies on public review pages only.)
 
 ## Findings
 
