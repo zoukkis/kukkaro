@@ -1,8 +1,8 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { api, CUSTOMER_ID, type BillSuggestion, type ButlerResponse, type ButlerSource, type Product, type SwapsResponse } from "./api";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { api, CUSTOMER_ID, type BillSuggestion, type ButlerResponse, type ButlerSource, type Product, type SwapsResponse, type Watch } from "./api";
 import { useOrderBasket } from "./basket";
-import { formatEur, formatMonth } from "./format";
-import { IconCopy, IconExternal, IconMail, IconReceipt, IconSend, IconSpark, IconTrend } from "./Icons";
+import { formatDate, formatEur, formatMonth } from "./format";
+import { IconBell, IconCopy, IconExternal, IconMail, IconReceipt, IconSend, IconSpark, IconTrend } from "./Icons";
 
 // The three demo tasks from backend/kukkaro/butler/AGENTS.md.
 const EXAMPLES = [
@@ -14,6 +14,10 @@ const EXAMPLES = [
 // What the Butler really does, in order (backend/kukkaro/butler/agent.py).
 const STAGES = ["Reading your bills and income", "Searching official sources and current prices", "Checking every number", "Preparing a draft for you"];
 
+// Keep the Help screen short: long answers fold after ~7 lines, next steps after 3.
+const ANSWER_CLAMP_CHARS = 380;
+const STEPS_SHOWN = 3;
+
 const stagger = (i: number) => ({ "--i": i }) as CSSProperties;
 
 export default function Butler() {
@@ -24,9 +28,11 @@ export default function Butler() {
   const [error, setError] = useState(false);
   const [stage, setStage] = useState(0);
   const [cards, setCards] = useState<BillSuggestion[]>([]);
+  const [watches, setWatches] = useState<Watch[]>([]);
 
   useEffect(() => {
     api.suggestions(CUSTOMER_ID).then((r) => setCards(r.suggestions)).catch(() => setCards([]));
+    api.watchlist(CUSTOMER_ID).then((r) => setWatches(r.items)).catch(() => setWatches([]));
   }, []);
 
   useEffect(() => {
@@ -35,6 +41,17 @@ export default function Butler() {
     const t = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 2600);
     return () => clearInterval(t);
   }, [busy]);
+
+  // A new answer scrolls into view, so nobody has to hunt for it.
+  const answerRef = useRef<HTMLElement | null>(null);
+  const [more, setMore] = useState(false);
+  const [allSteps, setAllSteps] = useState(false);
+  useEffect(() => {
+    setMore(false);
+    setAllSteps(false);
+    if (res) answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [res]);
+  const long = (res?.answer.length ?? 0) > ANSWER_CLAMP_CHARS;
 
   async function run(text: string) {
     const t = text.trim();
@@ -58,35 +75,10 @@ export default function Butler() {
         <p className="eyebrow mono rise" style={stagger(0)}>
           Kukkaro Butler <span className="powered">· search by Exa</span>
         </p>
-        <h1 className="display rise" style={stagger(1)}>
+        <h1 className="display butler-title rise" style={stagger(1)}>
           Money you might be <em>missing.</em>
         </h1>
-        <p className="lede rise" style={stagger(2)}>
-          I search the live web for benefits, fairer prices and your rights, show every source, and prepare the next
-          step. You decide what to send.
-        </p>
       </div>
-
-      <Swaps />
-
-      {cards.map((c, i) => (
-        <section key={c.category} className="nudge rise" style={stagger(3 + i)}>
-          <span className="nudge-icon"><IconTrend /></span>
-          <div className="nudge-body">
-            <p className="eyebrow">Noticed in your bank data</p>
-            <h2 className="nudge-title">
-              {c.title} <span className="up num">+{c.change_pct}%</span>
-            </h2>
-            <p className="muted">
-              {formatMonth(c.latest_month)}: <strong className="num">{formatEur(c.latest_month_eur)}</strong> vs a typical
-              month of <strong className="num">{formatEur(c.typical_monthly_eur)}</strong>
-            </p>
-            <button className="button primary" disabled={busy} onClick={() => { setInput(c.task); run(c.task); }}>
-              <IconSpark /> Ask the Butler why
-            </button>
-          </div>
-        </section>
-      ))}
 
       <form
         className="composer butler-input rise"
@@ -106,7 +98,7 @@ export default function Butler() {
           <IconSend />
         </button>
       </form>
-      <div className="chips wrap rise" style={stagger(5)} aria-label="Example tasks">
+      <div className="chips chips-row rise" style={stagger(3)} aria-label="Example tasks">
         {EXAMPLES.map((s) => (
           <button key={s} className="chip" disabled={busy} onClick={() => { setInput(s); run(s); }}>
             {s}
@@ -129,19 +121,22 @@ export default function Butler() {
       {error && <p className="status">Couldn't reach the Butler. Please try again in a moment.</p>}
 
       {res && !busy && (
-        <section className="card exa butler-answer reveal-in" aria-live="polite">
+        <section ref={answerRef} className="card exa butler-answer reveal-in" aria-live="polite">
           <p className="butler-task"><span className="q" aria-hidden>search</span>{task}</p>
-          <p className="answer">{withCitations(res.answer, res.sources)}</p>
+          <p className={`answer${long && !more ? " clamped" : ""}`}>{withCitations(res.answer, res.sources)}</p>
+          {long && (
+            <button className="link-button read-more" onClick={() => setMore((m) => !m)}>
+              {more ? "Show less" : "Read more"}
+            </button>
+          )}
 
           {res.products && res.products.length > 0 && <ProductCards products={res.products} />}
-
-          {res.draft && <Draft draft={res.draft} />}
 
           {res.next_steps.length > 0 && (
             <>
               <h3 className="section-title">Next steps</h3>
               <ol className="steps">
-                {res.next_steps.map((s, i) => (
+                {res.next_steps.slice(0, allSteps ? undefined : STEPS_SHOWN).map((s, i) => (
                   <li key={i}>
                     <label>
                       <input type="checkbox" /> <span>{withCitations(s, res.sources)}</span>
@@ -149,12 +144,27 @@ export default function Butler() {
                   </li>
                 ))}
               </ol>
+              {res.next_steps.length > STEPS_SHOWN && !allSteps && (
+                <button className="link-button read-more" onClick={() => setAllSteps(true)}>
+                  Show all {res.next_steps.length} steps
+                </button>
+              )}
             </>
           )}
 
+          {res.draft && <Draft draft={res.draft} />}
+
+          {task && res.research?.question_sent && (
+            <WatchButton task={task} watching={watches.some((w) => w.task === task)}
+              onWatched={(w) => setWatches((ws) => [w, ...ws.filter((x) => x.id !== w.id)])} />
+          )}
+
           {res.sources.length > 0 && (
-            <>
-              <h3 className="section-title">Sources <span className="powered">· found with Exa</span></h3>
+            <details className="sources-fold" id="answer-sources">
+              <summary className="section-title">
+                {res.sources.length} {res.sources.length === 1 ? "source" : "sources"}{" "}
+                <span className="powered">· found with Exa</span>
+              </summary>
               <ol className="sources">
                 {res.sources.map((s) => (
                   <li key={s.n} id={`src-${s.n}`} className={s.cited ? "cited" : ""}>
@@ -170,7 +180,7 @@ export default function Butler() {
                   </li>
                 ))}
               </ol>
-            </>
+            </details>
           )}
           <p className="source">
             Kukkaro is a coach, not a licensed advisor. You decide what to do; check the official source before acting.
@@ -178,12 +188,162 @@ export default function Butler() {
           </p>
         </section>
       )}
+
+      {watches.length > 0 && (
+        <Watching watches={watches} onChange={(w) => setWatches((ws) => ws.map((x) => (x.id === w.id ? w : x)))}
+          onRemove={(id) => setWatches((ws) => ws.filter((x) => x.id !== id))} />
+      )}
+
+      {cards.map((c) => (
+        <section key={c.category} className="nudge compact rise">
+          <span className="nudge-icon"><IconTrend /></span>
+          <div className="nudge-body">
+            <h2 className="nudge-title">
+              {c.title} <span className="up num">+{c.change_pct}%</span>
+            </h2>
+            <p className="muted">
+              {formatMonth(c.latest_month)}: <strong className="num">{formatEur(c.latest_month_eur)}</strong> vs a typical
+              month of <strong className="num">{formatEur(c.typical_monthly_eur)}</strong>
+            </p>
+            <button className="button primary small-button" disabled={busy} onClick={() => { setInput(c.task); run(c.task); }}>
+              <IconSpark /> Ask the Butler why
+            </button>
+          </div>
+        </section>
+      ))}
+
+      <Swaps />
     </div>
   );
 }
 
+// "Watch this": Kukkaro re-checks the question's sources with Exa and tells you only when they change.
+function WatchButton({ task, watching, onWatched }: { task: string; watching: boolean; onWatched: (w: Watch) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (watching)
+    return (
+      <p className="watch-saved" role="status">
+        <IconBell size={16} /> Watching · we'll tell you when the sources change
+      </p>
+    );
+  async function save() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      onWatched(await api.watch(CUSTOMER_ID, task));
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="watch-row">
+      <button className="button ghost watch-button" disabled={busy} onClick={save}>
+        <IconBell size={16} /> {busy ? "Saving…" : "Watch this"}
+      </button>
+      {failed && <span className="muted">Couldn't save it. Please try again.</span>}
+    </div>
+  );
+}
+
+// "Watching": saved questions, re-checked on demand (and by a nightly job). Every change, count and date
+// comes from the API; the UI only shows it.
+function Watching({ watches, onChange, onRemove }: {
+  watches: Watch[];
+  onChange: (w: Watch) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  async function check(w: Watch) {
+    setBusy(w.id);
+    setFailed(null);
+    try {
+      const r = await api.checkWatch(w.id);
+      onChange({ ...w, last_result: r, last_checked_at: r.error && !r.changed ? w.last_checked_at : r.checked_at });
+    } catch {
+      setFailed(w.id);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className="watching card exa rise" aria-label="Watching">
+      <h2 className="watching-title"><IconBell /> Watching</h2>
+      <p className="muted watching-lede">Re-checked with Exa. You only hear about changes.</p>
+      <ul className="watch-list">
+        {watches.map((w) => {
+          const r = w.last_result;
+          const n = r ? r.new_sources.length + r.updated_sources.length + r.gone_sources.length : 0;
+          const cites = r ? r.sources.map((s) => ({ n: s.n ?? 0, title: s.title, url: s.url })) : [];
+          return (
+            <li key={w.id} className="watch-item">
+              <p className="watch-q">{w.task}</p>
+              <p className="watch-meta">Last checked {formatDate(w.last_checked_at.slice(0, 10))}</p>
+              <div className="watch-actions">
+                <button className="button ghost" disabled={busy === w.id} onClick={() => check(w)}>
+                  {busy === w.id ? "Checking…" : "Check now"}
+                </button>
+                <button className="link-button"
+                  onClick={() => api.unwatch(w.id).then(() => onRemove(w.id)).catch(() => setFailed(w.id))}>
+                  Stop watching
+                </button>
+              </div>
+              {failed === w.id && <p className="muted">Couldn't reach Kukkaro. Please try again.</p>}
+              {r && r.error && !r.changed && <p className="muted">Couldn't check the sources right now.</p>}
+              {r && !r.error && !r.changed && <p className="watch-nochange">No changes</p>}
+              {r && r.changed && (
+                <div className="watch-change reveal-in">
+                  <p className="watch-change-title">
+                    {n} {n === 1 ? "source" : "sources"} changed
+                    <span className="watch-counts">
+                      {r.new_sources.length > 0 && ` · ${r.new_sources.length} new`}
+                      {r.updated_sources.length > 0 && ` · ${r.updated_sources.length} updated`}
+                      {r.gone_sources.length > 0 && ` · ${r.gone_sources.length} gone`}
+                    </span>
+                  </p>
+                  {r.summary && <p className="answer">{withCitations(r.summary, cites, `w-${w.id}-src`)}</p>}
+                  {r.sources.length > 0 && (
+                    <details className="sources-fold">
+                    <summary className="section-title">
+                      {r.sources.length} changed {r.sources.length === 1 ? "source" : "sources"}
+                    </summary>
+                    <ol className="sources">
+                      {r.sources.map((s) => (
+                        <li key={s.url} id={`w-${w.id}-src-${s.n}`} className="cited">
+                          <span className="src-n">{s.n}</span>
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            <span className="src-title">{s.title || s.url}</span>
+                            <span className="src-meta">
+                              {s.status === "new" ? "New" : "Updated"} · {s.site}
+                              {s.published_date && ` · ${s.published_date.slice(0, 10)}`}
+                              <IconExternal size={13} />
+                            </span>
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                    </details>
+                  )}
+                  {r.gone_sources.length > 0 && (
+                    <p className="watch-gone">No longer found: {r.gone_sources.map((g) => g.site).join(", ")}</p>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 // "[2]" or "[1, 2]" in the text becomes small links to those sources.
-function withCitations(text: string, sources: ButlerSource[]): ReactNode[] {
+function withCitations(text: string, sources: ButlerSource[], idPrefix = "src"): ReactNode[] {
   const known = new Set(sources.map((s) => s.n));
   return text.split(/(\[\d+(?:\s*,\s*\d+)*\])/g).map((part, i) => {
     const m = part.match(/^\[([\d,\s]+)\]$/);
@@ -191,7 +351,8 @@ function withCitations(text: string, sources: ButlerSource[]): ReactNode[] {
     const ns = m[1].split(",").map((x) => Number(x.trim())).filter((n) => known.has(n));
     if (ns.length === 0) return part;
     return ns.map((n) => (
-      <a key={`${i}-${n}`} className="cite" href={`#src-${n}`} aria-label={`Source ${n}`}>
+      <a key={`${i}-${n}`} className="cite" href={`#${idPrefix}-${n}`} aria-label={`Source ${n}`}
+        onClick={() => document.getElementById(`${idPrefix}-${n}`)?.closest("details")?.setAttribute("open", "")}>
         {n}
       </a>
     ));
@@ -210,13 +371,12 @@ function Draft({ draft }: { draft: NonNullable<ButlerResponse["draft"]> }) {
     }
   };
   return (
-    <div className="draft-card">
-      <p className="eyebrow">{draft.kind === "email" ? "Ready to send" : "Ready to fill in"}</p>
-      {draft.subject && <h3 className="draft-subject">{draft.subject}</h3>}
-      <details className="draft-body">
-        <summary>Read the draft</summary>
-        <pre>{draft.body}</pre>
-      </details>
+    <details className="draft-card draft-fold">
+      <summary>
+        <span className="eyebrow">{draft.kind === "email" ? "Draft ready to send" : "Draft ready to fill in"}</span>
+        {draft.subject && <span className="draft-subject">{draft.subject}</span>}
+      </summary>
+      <pre className="draft-text">{draft.body}</pre>
       <div className="draft-actions">
         {draft.mailto ? (
           <a className="button primary" href={draft.mailto}>
@@ -234,7 +394,7 @@ function Draft({ draft }: { draft: NonNullable<ButlerResponse["draft"]> }) {
         </button>
       </div>
       <p className="muted small">Nothing is sent automatically. You review it and send it yourself.</p>
-    </div>
+    </details>
   );
 }
 
@@ -258,9 +418,8 @@ function Swaps() {
       <p className="swaps-kicker"><IconReceipt size={15} /> From your receipts</p>
       <h2 className="swaps-title">Same food, smaller bill</h2>
       <p className="muted">
-        Switching your usual branded items to S-Group's own brands would have saved{" "}
-        <strong className="num">{formatEur(data.monthly_saving_eur)}</strong> a month
-        (<span className="num">{formatEur(data.yearly_saving_eur)}</span> a year).
+        S-Group's own brands would save you <strong className="num">{formatEur(data.monthly_saving_eur)}</strong> a
+        month. Swipe for the swaps.
       </p>
       <ul className="swap-list">
         {shown.map((s) => {

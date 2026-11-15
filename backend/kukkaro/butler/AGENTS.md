@@ -46,6 +46,24 @@ specific drivers from receipts, plus a Butler that brings in current official in
   grocery sites are excluded from other searches and dropped from results; facts naming competitor
   chains are dropped. Official topics keep `OFFICIAL_DOMAINS`.
 
+## Watchlist (`watchlist.py`, 15 Nov)
+- `watch(customer_id, task)` runs `agent.run` once (cached if just asked) and stores only the gateway's
+  `question_sent`, the topic kind and a source snapshot `{url, title, published_date, content_hash}` in
+  `data/cache/watchlist/` (gitignored). A task the gateway blocked can't be watched (422).
+- `check(watch_id)` is public zone only (`_public_check` gets the question, kind and snapshot, nothing else):
+  two live Exa searches with the cache bypassed (`max_age_h=0`): the question, and the question with
+  `start_published_date` = the last check's day, limited to the sites already in the ranked results. A page
+  only that second search found must also mention a topic word of the question (`relevant()`). Live, without
+  these two rules the date filter brought in Espoo noise notices (Kela question) and EV-charging blogs
+  (electricity question).
+- Fingerprint = hash of the page **text** (`text_chars`), not the highlights: Exa regenerated highlights for
+  unchanged pages minutes apart, which made every check report false "updated" sources.
+- Diff in code: new, gone (pages found only by the date search drop out quietly), updated (same URL, new hash
+  or newer published date). Only if changed: Gemini, at most 3 sentences, `[n]` citations to the changed
+  sources; invalid citations are removed and eligibility claims softened in code. Exa down -> error, snapshot kept.
+- Routes: `POST/GET /api/customers/{id}/watchlist`, `POST /api/watchlist/{id}/check`, `DELETE /api/watchlist/{id}`.
+  Nightly: `python -m kukkaro.butler.watchlist --check-all`.
+
 ## Rules
 - Never claim someone **is** eligible. Say "you may be eligible; here's how to check", with the official link.
 - Use the LLM interface from `kukkaro.coach.llm` (don't add another SDK). Ask COACH if you need changes.

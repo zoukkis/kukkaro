@@ -122,6 +122,7 @@ export interface ButlerResponse {
   model?: string;
   cached?: boolean;
   error?: string;
+  research?: { question_sent: string | null }; // null = the privacy gateway sent nothing (then it can't be watched)
 }
 
 // GET /customers/{id}/butler/suggestions: proactive "your bill went up" cards (numbers from DATA).
@@ -257,6 +258,38 @@ export interface ChatResponse {
   number_check?: "ok" | "retried" | "withheld";
 }
 
+// ---------- Watchlist (backend/kukkaro/butler/watchlist.py) ----------
+export interface WatchSource {
+  url: string;
+  title: string;
+  site: string;
+  published_date: string | null;
+  content_hash?: string;
+  n?: number; // numbered changed sources (new/updated) that the summary cites
+  status?: "new" | "updated";
+}
+
+export interface WatchCheck {
+  changed: boolean;
+  summary: string | null;
+  sources: WatchSource[];
+  new_sources: WatchSource[];
+  gone_sources: WatchSource[];
+  updated_sources: WatchSource[];
+  checked_at: string;
+  error: string | null;
+}
+
+export interface Watch {
+  id: string;
+  task: string;
+  question_sent: string; // what the privacy gateway let out; the only text Exa ever sees
+  created_at: string;
+  last_checked_at: string;
+  last_result: WatchCheck | null;
+  sources: WatchSource[];
+}
+
 // ---------- Real API ----------
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -308,6 +341,13 @@ const real = {
       body: JSON.stringify({ plan_id, include_treats, delivery, extras, swaps }),
     }),
   swaps: (id: string) => http<SwapsResponse>(`/customers/${encodeURIComponent(id)}/swaps`),
+  watchlist: (id: string) => http<{ items: Watch[] }>(`/customers/${encodeURIComponent(id)}/watchlist`),
+  watch: (id: string, task: string) =>
+    http<Watch>(`/customers/${encodeURIComponent(id)}/watchlist`, { method: "POST", body: JSON.stringify({ task }) }),
+  checkWatch: (watchId: string) =>
+    http<WatchCheck>(`/watchlist/${encodeURIComponent(watchId)}/check`, { method: "POST" }),
+  unwatch: (watchId: string) =>
+    http<{ deleted: string }>(`/watchlist/${encodeURIComponent(watchId)}`, { method: "DELETE" }),
   chat: (customer_id: string, message: string, history: ChatTurn[]) =>
     http<ChatResponse>(`/chat`, {
       method: "POST",
@@ -499,6 +539,13 @@ const mockReceipt = (txId: string): Receipt => ({
   ],
 });
 
+// Mock watchlist: in memory, labelled as mock. The first check of a watch reports one illustrative change.
+const mockWatches: Watch[] = [];
+const mockSource = (n: number, status: "new" | "updated"): WatchSource => ({
+  n, status, url: "https://www.kela.fi/general-housing-allowance", site: "kela.fi",
+  title: "Mock source (example only)", published_date: "2026-11-14",
+});
+
 const mock: typeof real = {
   summary: async (_id, _month, receipts = false) => {
     await wait(300);
@@ -586,6 +633,35 @@ const mock: typeof real = {
       left_this_week_after_order_eur: 110.3, note: "Mock data.",
     }
   ),
+  watchlist: async () => (await wait(150), { items: [...mockWatches] }),
+  watch: async (_id, task) => {
+    await wait(500);
+    const now = new Date().toISOString();
+    const w: Watch = { id: Math.random().toString(16).slice(2, 14).padEnd(12, "0"), task, question_sent: `${task} (mock)`,
+      created_at: now, last_checked_at: now, last_result: null, sources: [] };
+    mockWatches.unshift(w);
+    return w;
+  },
+  checkWatch: async (watchId) => {
+    await wait(700);
+    const w = mockWatches.find((x) => x.id === watchId);
+    if (!w) throw new Error("404 Not Found");
+    const first = w.last_result == null;
+    const r: WatchCheck = {
+      changed: first, checked_at: new Date().toISOString(), error: null,
+      summary: first ? "Mock mode: an example of a changed source [1]." : null,
+      sources: first ? [mockSource(1, "updated")] : [], new_sources: [], updated_sources: first ? [mockSource(1, "updated")] : [],
+      gone_sources: [],
+    };
+    w.last_result = r;
+    w.last_checked_at = r.checked_at;
+    return r;
+  },
+  unwatch: async (watchId) => {
+    const i = mockWatches.findIndex((x) => x.id === watchId);
+    if (i >= 0) mockWatches.splice(i, 1);
+    return { deleted: watchId };
+  },
   chat: async (_id, message) => (
     await wait(900), { ...mockChat(message), model: "mock", host: "mock", zones: ["trusted"], fallback: false }
   ),
